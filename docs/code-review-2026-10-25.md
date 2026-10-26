@@ -89,6 +89,14 @@ próximas versões. Números de linha referem-se aos arquivos na data da revisã
   Studio rodando (orquestra via HTTP) — documentar.
 - `firewall.ps1`: restringir `block` a IPs públicos; tolerar
   `-DisabledRulesBase64` vazio.
+- **Frontend** (revisão de UI): `monitorJob` roda polling infinito — cancelar
+  ao fechar o modal, tratar retry transitório, TTL e prune de
+  `state.activeJobs`; `saveVersions` nunca é chamado (persistência de
+  versões morta) e a copy offline é enganosa; `js/api.js` sem
+  timeout/`AbortController`; abas ARIA sem navegação por setas/tabpanel e
+  sem skip-link (fazer um passe de axe); `showModal` aceita HTML bruto —
+  manter a disciplina de escape nos callers ao dividir o `app.js`
+  (toda divisão exige adicionar o novo `js/*` ao `STATIC_FILES`).
 
 ## P3 — cosmético
 

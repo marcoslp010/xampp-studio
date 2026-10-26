@@ -2969,7 +2969,12 @@ async function downloadWindowsPhpRuntime(version) {
 }
 
 async function handler(req, res) {
-  if (!trustedLocalRequest(req)) return json(res, 403, { error: 'Acesso permitido apenas pelo navegador local do XAMPP Studio.' });
+  if (!trustedLocalRequest(req)) {
+    // Drena o corpo rejeitado: sem isso, um POST grande de origem
+    // não autorizada deixa a conexão pendurada até o cliente desistir.
+    req.resume();
+    return json(res, 403, { error: 'Acesso permitido apenas pelo navegador local do XAMPP Studio.' });
+  }
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
   try {
     if (req.method === 'GET' && url.pathname === '/api/extensions/downloads') {
@@ -3235,11 +3240,19 @@ async function handler(req, res) {
       return json(res, 200, analyzeSql(body.sql));
     }
     if (req.method === 'POST' && url.pathname === '/api/backup') return json(res, 201, await createBackup());
-    if (req.method === 'GET' && STATIC_FILES.has(url.pathname)) {
+    if (STATIC_FILES.has(url.pathname) && (req.method === 'GET' || req.method === 'HEAD')) {
       const [file, contentType] = STATIC_FILES.get(url.pathname);
       const bytes = fs.readFileSync(path.join(APP_ROOT, file));
-      res.writeHead(200, { 'content-type': contentType, 'content-length': bytes.length, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-      return res.end(bytes);
+      res.writeHead(200, {
+        'content-type': contentType,
+        'content-length': bytes.length,
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+        // A interface não usa CDN, scripts inline nem imagens externas; o
+        // único data: é o favicon. A CSP fecha a porta a injeções.
+        'content-security-policy': "default-src 'self'; img-src 'self' data:"
+      });
+      return res.end(req.method === 'HEAD' ? undefined : bytes);
     }
     return json(res, 404, { error: 'Rota não encontrada.' });
   } catch (error) {
