@@ -37,11 +37,13 @@ const {
 } = require('../lib/service-command.cjs');
 const { readPeExports, readPeImportSymbols, readPeImports } = require('../lib/pe-imports.cjs');
 const {
+  apacheDenyRules,
   apacheListenPorts,
   apachePrimaryPort,
   apacheServerName,
   rewriteApacheListenPort
 } = require('../lib/apache-config.cjs');
+const { isInside } = require('../lib/runtime-state.cjs');
 
 const XAMPP_ROOT = process.env.XAMPP_ROOT || 'C:\\xampp';
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -305,6 +307,56 @@ test('rewriteApacheListenPort preserva o endereço e recusa porta inválida', ()
   assert.match(updated, /Listen 0\.0\.0\.0:8081/);
   assert.throws(() => rewriteApacheListenPort('Listen 80', 70000), /entre 1 e 65535/);
   assert.throws(() => rewriteApacheListenPort('Listen 80', 0), /entre 1 e 65535/);
+});
+
+test('apacheDenyRules nega workspace, logs, downloads e os estados da raiz', () => {
+  const rules = apacheDenyRules('C:/xampp/htdocs/new-xampper');
+  // workspace/ guarda credenciais do MySQL, data dir e despejos SQL.
+  assert.match(rules, /<Directory "C:\/xampp\/htdocs\/new-xampper\/workspace">\s*Require all denied/s);
+  assert.match(rules, /<Directory "C:\/xampp\/htdocs\/new-xampper\/logs">\s*Require all denied/s);
+  assert.match(rules, /<Directory "C:\/xampp\/htdocs\/new-xampper\/downloads">\s*Require all denied/s);
+  assert.match(rules, /<Directory "C:\/xampp\/htdocs\/new-xampper\/backups">\s*Require all denied/s);
+  // Estados de runtime da raiz também ficam bloqueados.
+  assert.match(rules, /dll-registry\\\.json/);
+  assert.match(rules, /performance-state\\\.json/);
+  assert.match(rules, /firewall-state\\\.json/);
+  assert.match(rules, /request-body-log\\\.php/);
+});
+
+test('apacheDenyRules re-libera o documentRoot publicado dentro do workspace', () => {
+  const root = 'C:/xampp/htdocs/new-xampper';
+  const documentRoot = `${root}/workspace/htdocs`;
+  const rules = apacheDenyRules(root, [documentRoot]);
+  // A pasta workspace continua negada…
+  assert.match(rules, /<Directory "C:\/xampp\/htdocs\/new-xampper\/workspace">\s*Require all denied/s);
+  // …mas o documentRoot interno recebe seu próprio bloco de liberação,
+  // porque no Apache o <Directory> mais específico vence o genérico.
+  assert.match(rules, /<Directory "C:\/xampp\/htdocs\/new-xampper\/workspace\/htdocs">\s*Require all granted/s);
+});
+
+test('readPeImports não lança em DLL malformada e devolve vazio', () => {
+  // Cabeçalhos MZ/PE válidos, corpo truncado: os RVAs de delay import caem
+  // fora do buffer — antes da correção isso virava RangeError cru no meio
+  // de uma troca de versão.
+  const directory = temporaryDirectory('pe-malformada-');
+  const file = path.join(directory, 'broken.dll');
+  const buffer = Buffer.alloc(0x100, 0);
+  buffer.write('MZ', 0, 'ascii');
+  buffer.writeUInt32LE(0x40, 0x3c);
+  buffer.write('PE\0\0', 0x40, 'ascii');
+  fs.writeFileSync(file, buffer);
+  assert.deepEqual(readPeImports(file), []);
+  assert.deepEqual(readPeExports(file), []);
+  assert.deepEqual(readPeImportSymbols(file), []);
+});
+
+test('isInside rejeita travessia e aceita apenas caminhos internos', () => {
+  const parent = PROJECT_ROOT;
+  assert.equal(isInside(parent, path.join(parent, 'lib', 'services.cjs')), true);
+  assert.equal(isInside(parent, parent), true);
+  assert.equal(isInside(parent, path.resolve(parent, '..', 'arquivo-externo.js')), false);
+  assert.equal(isInside(parent, `${parent}-vizinho`), false);
+  assert.equal(isInside(parent, path.parse(parent).root), false);
 });
 
 // ---------------------------------------------------------------------------

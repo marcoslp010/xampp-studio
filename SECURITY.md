@@ -10,15 +10,37 @@ si só.
 Superfícies que tratamos com cuidado especial:
 
 - A API local valida o header `Origin` para impedir que páginas arbitrárias
-  no navegador invoquem ações do Studio (CSRF/DNS rebinding).
+  no navegador invoquem ações do Studio (CSRF/DNS rebinding), além de
+  confirmar o `Host` em todas as requisições.
 - Ações de janela (Shell, Explorer, Config, Logs, Admin) usam allowlist de
   destinos — o cliente envia o nome da ação e o componente, nunca caminhos.
+- Endpoints que repassam comandos ao helper elevado (UAC) aceitam apenas os
+  nomes de serviço gerenciados (`Apache2.4`, `mysql`, `XAMPPStudio-Apache`,
+  `XAMPPStudio-MySQL`), nunca um nome arbitrário.
 - Escritas de arquivo são limitadas às pastas gerenciadas.
-- Downloads de runtimes são validados por checksum (SHA-256/MD5) publicado
-  pela fonte oficial antes da extração.
+- Downloads de runtimes são validados por checksum publicado pela fonte
+  oficial antes da extração, e a extração recusa caminhos absolutos e `..`
+  (zip-slip).
 - Credenciais geradas de banco ficam em `workspace/mysql/credentials/`,
-  que está fora do controle de versão (`.gitignore`), e nunca são incluídas
-  em logs ou diagnósticos.
+  que está fora do controle de versão (`.gitignore`) e bloqueada pela
+  configuração do Apache gerada pelo Studio; nunca são incluídas em logs
+  ou diagnósticos. A senha não circula em linha de comando: clientes do
+  MySQL/MariaDB a recebem por variável de ambiente (`MYSQL_PWD`).
+
+## Âncoras de confiança da cadeia de suprimentos
+
+- **PHP (windows.php.net)**: SHA-256 oficial, conferido antes da extração.
+- **Apache Lounge**: SHA-256 publicado pelo fornecedor. O checksum vem do
+  mesmo servidor do binário — a âncora real é TLS + o domínio oficial.
+- **MariaDB**: SHA-256 do archive oficial. **MySQL Community**: a Oracle
+  publica apenas MD5, tratado como detecção de corrupção acidental, não
+  como proteção criptográfica; a assinatura GPG listada no catálogo ainda
+  não é verificada automaticamente.
+- **PECL**: o download usa TLS para downloads.php.net e valida o build por
+  versão/TS/compilador/arquitetura; os builds publicados não têm checksum
+  próprio na fonte.
+- Dados vindos de catálogos externos (Packagist, PECL) são renderizados na
+  interface com escape de HTML e esquema de URL restrito a http(s).
 
 ## Como reportar uma vulnerabilidade
 

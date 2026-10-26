@@ -1,5 +1,5 @@
 /**
- * XAMPP Studio — telas e_BINDings.
+ * XAMPP Studio — telas e interações.
  *
  * O núcleo (estado, toasts, modal) vive em js/core.js e o acesso ao agente
  * local em js/api.js. Este arquivo cuida das telas e das interações.
@@ -11,6 +11,7 @@ import {
   closeModal,
   escapeHtml,
   recordActivity,
+  safeUrl,
   saveVersions,
   showModal,
   showSkeleton,
@@ -369,7 +370,7 @@ async function searchMissingDllsForRuntime(runtime){
       const catalog=(result.catalog||[]).find(entry=>String(entry.dll).toLowerCase()===key);
       const exact=local.some(entry=>entry.sameVersion);
       const localHtml=local.length?local.map(entry=>`<div class="missing-dll-local"><small>Encontrada em PHP ${escapeHtml(entry.sourceVersion||'runtime')}${entry.sameVersion?' · mesma versão':''}${entry.threadSafety?` · ${escapeHtml(entry.threadSafety)}`:''}${entry.architecture?` · ${escapeHtml(entry.architecture)}`:''}</small><code>${escapeHtml(entry.path)}</code></div>`).join(''):'<div class="catalog-context">Nenhuma cópia local encontrada nos runtimes instalados.</div>';
-      const packages=catalog?.packages?.length?`<div class="missing-dll-packages">${catalog.packages.map(pkg=>`<a class="missing-dll-package" href="${escapeHtml(pkg.url)}" target="_blank" rel="noreferrer">${escapeHtml(pkg.name)} ↗</a>`).join('')}</div>`:catalog?.error?`<div class="catalog-context">Catálogo indisponível: ${escapeHtml(catalog.error)}</div>`:'';
+      const packages=catalog?.packages?.length?`<div class="missing-dll-packages">${catalog.packages.map(pkg=>`<a class="missing-dll-package" href="${escapeHtml(safeUrl(pkg.url))}" target="_blank" rel="noreferrer">${escapeHtml(pkg.name)} ↗</a>`).join('')}</div>`:catalog?.error?`<div class="catalog-context">Catálogo indisponível: ${escapeHtml(catalog.error)}</div>`:'';
       const pecl=item.kind==='php_extension'?`<div class="missing-dll-actions"><button class="outline-button small-button pecl-versions" type="button" data-dll="${escapeHtml(item.dll)}" data-root="${escapeHtml(runtime.root)}">Buscar versões no PECL <span>→</span></button></div>`:'';
       return `<article class="missing-dll-card"><div class="missing-dll-card-head"><strong>${escapeHtml(item.dll)}</strong><span class="result-chip ${exact?'done':local.length?'warning-chip':''}">${exact?'MESMA VERSÃO':local.length?'OUTRO BUILD':'SEM CÓPIA LOCAL'}</span></div><small>${escapeHtml(dllKindLabel(item.kind))}${item.sources?.length?` · ${escapeHtml(item.sources.join(', '))}`:''}</small>${localHtml}${packages||(catalog?'<div class="catalog-context">Nenhum pacote php-ext encontrado no PIE para esta extensão.</div>':'')}${pecl}</article>`;
     }).join('');
@@ -389,7 +390,7 @@ async function showPeclVersions(dll,runtime=selectedDllRuntime(),packageName,ref
     if(state.dllVersionRoot!==runtime.root)return;
     const target=result.target||{};
     const targetLabel=`PHP ${escapeHtml(target.version||runtime.version||'—')} · ${escapeHtml(String(target.threadSafety||'').toUpperCase()||'—')} · ${escapeHtml(target.compiler||'—')} · ${escapeHtml(target.architecture||'—')}`;
-    const packageLink=`<a class="missing-dll-package" href="${escapeHtml(result.packageUrl)}" target="_blank" rel="noreferrer">${escapeHtml(result.package)} no PECL ↗</a>`;
+    const packageLink=`<a class="missing-dll-package" href="${escapeHtml(safeUrl(result.packageUrl))}" target="_blank" rel="noreferrer">${escapeHtml(result.package)} no PECL ↗</a>`;
     if(!result.releases?.length){
       $('#modalContent').innerHTML=`<h2>PECL · ${escapeHtml(result.package||dll)}</h2><p class="modal-copy">${packageLink}</p><div class="modal-note">${escapeHtml(result.error||'O PECL não retornou versões para este pacote.')}</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Fechar</button></div>`;$('#cancelAction').onclick=closeModal;return;
     }
@@ -411,12 +412,12 @@ async function showPeclVersions(dll,runtime=selectedDllRuntime(),packageName,ref
 renderVersions();renderExtensions();renderActivity();
 function setServiceStatus(element,active,detail=null){
   const el=$(element);el.classList.toggle('stopped',active===false);el.classList.toggle('unavailable',active===null);
-  el.innerHTML=`<i></i> ${active===null?'Sem conexão':active?(detail||'Em execução'):(detail||'Parado')}`;
+  el.innerHTML=`<i></i> ${active===null?'Sem conexão':active?(escapeHtml(detail||'Em execução')):(escapeHtml(detail||'Parado'))}`;
 }
 function setServiceCardStatus(element,active,detail=null){
   if(!element)return;
   element.classList.toggle('stopped',active===false);element.classList.toggle('unavailable',active===null);
-  element.innerHTML=`<i></i> ${active===null?'Aguardando leitura':active?(detail||'Em execução'):(detail||'Parado')}`;
+  element.innerHTML=`<i></i> ${active===null?'Aguardando leitura':active?(escapeHtml(detail||'Em execução')):(escapeHtml(detail||'Parado'))}`;
 }
 async function loadLiveStatus(){
   try{
@@ -575,7 +576,7 @@ $('#catalogForm').addEventListener('submit',async event=>{
     if(state.dllVersionRoot!==runtime.root||searchSequence!==catalogSearchSequence)return;
     state.catalogPackages=result.packages;state.catalogRoot=runtime.root;
     $('#catalogContext').textContent=`${result.packages.length} pacote(s) · ${result.source}${result.normalizedQuery!==query?` · busca: ${result.normalizedQuery}`:''}${result.warnings?.length?` · ${result.warnings.join(' ')}`:''} · consultado em ${new Date(result.checkedAt).toLocaleTimeString('pt-BR')} · PHP de destino ${runtime.version}`;
-    results.innerHTML=result.packages.map((pkg,index)=>`<article class="catalog-package"><div class="catalog-package-main"><div class="catalog-package-title"><strong>${escapeHtml(pkg.name)}</strong><span>${escapeHtml(pkg.source||'Packagist')}</span></div><p>${escapeHtml(pkg.description)}</p><small>${pkg.source?.startsWith('PECL')?'Build Windows consultado por runtime':`${pkg.downloads.toLocaleString('pt-BR')} downloads`}</small></div><div class="catalog-package-actions">${pkg.extension?`<button class="primary-button small-button catalog-builds" data-index="${index}">Ver DLLs compatíveis</button>`:''}${pkg.name.includes('/')?`<button class="outline-button small-button catalog-prepare" data-index="${index}" >Comando PIE</button>`:''}<a class="text-action" href="${escapeHtml(pkg.url)}" target="_blank" rel="noopener noreferrer">Ver pacote ↗</a></div></article>`).join('')||'<div class="empty-state"><strong>Nenhum pacote encontrado</strong><p>Tente ext-opentelemetry, redis ou xdebug. Nem toda extensão tem um pacote Windows.</p></div>';
+    results.innerHTML=result.packages.map((pkg,index)=>`<article class="catalog-package"><div class="catalog-package-main"><div class="catalog-package-title"><strong>${escapeHtml(pkg.name)}</strong><span>${escapeHtml(pkg.source||'Packagist')}</span></div><p>${escapeHtml(pkg.description)}</p><small>${pkg.source?.startsWith('PECL')?'Build Windows consultado por runtime':`${pkg.downloads.toLocaleString('pt-BR')} downloads`}</small></div><div class="catalog-package-actions">${pkg.extension?`<button class="primary-button small-button catalog-builds" data-index="${index}">Ver DLLs compatíveis</button>`:''}${pkg.name.includes('/')?`<button class="outline-button small-button catalog-prepare" data-index="${index}" >Comando PIE</button>`:''}<a class="text-action" href="${escapeHtml(safeUrl(pkg.url))}" target="_blank" rel="noopener noreferrer">Ver pacote ↗</a></div></article>`).join('')||'<div class="empty-state"><strong>Nenhum pacote encontrado</strong><p>Tente ext-opentelemetry, redis ou xdebug. Nem toda extensão tem um pacote Windows.</p></div>';
   }catch(error){
     if(state.dllVersionRoot!==runtime.root||searchSequence!==catalogSearchSequence)return;
     $('#catalogContext').textContent='O catálogo precisa de conexão com a internet e do agente local.';
@@ -905,7 +906,7 @@ async function loadApacheReleases(){
   const list=$('#apacheReleaseList');list.innerHTML='<div class="skeleton skeleton-block"></div><div class="skeleton skeleton-line medium"></div>';
   try{
     const catalog=await requestApi('/api/apache/releases');
-    list.innerHTML=`<div class="catalog-context">Apache atual ${escapeHtml(catalog.currentVersion)} · ${catalog.source}</div>`+catalog.versions.map(item=>`<article class="release-card"><div><strong>Apache ${escapeHtml(item.version)}</strong><small>Build ${escapeHtml(item.build)} · ${escapeHtml(item.architecture)} · ${escapeHtml(item.compiler)}</small><small>Pacote e SHA-256 publicados pelo Apache Lounge</small></div><button class="primary-button small-button download-apache" data-version="${escapeHtml(item.version)}" data-build="${escapeHtml(item.build)}">Baixar e preparar</button></article>`).join('')||'<div class="modal-note">Nenhuma versão superior encontrada para esta arquitetura.</div>';
+    list.innerHTML=`<div class="catalog-context">Apache atual ${escapeHtml(catalog.currentVersion)} · ${escapeHtml(catalog.source)}</div>`+catalog.versions.map(item=>`<article class="release-card"><div><strong>Apache ${escapeHtml(item.version)}</strong><small>Build ${escapeHtml(item.build)} · ${escapeHtml(item.architecture)} · ${escapeHtml(item.compiler)}</small><small>Pacote e SHA-256 publicados pelo Apache Lounge</small></div><button class="primary-button small-button download-apache" data-version="${escapeHtml(item.version)}" data-build="${escapeHtml(item.build)}">Baixar e preparar</button></article>`).join('')||'<div class="modal-note">Nenhuma versão superior encontrada para esta arquitetura.</div>';
   }catch(error){list.innerHTML=`<div class="modal-note">${escapeHtml(error.message)}</div>`}
 }
 $('#refreshApacheReleases').addEventListener('click',()=>{loadApacheReleases();loadPreparedApacheRuntimes()});
@@ -989,8 +990,8 @@ function renderPhpSettings(filter=''){
     const value=phpInputValue(item);const unset=item.value==null||item.value==='';let control='';
     if(item.type==='boolean')control=`<input type="checkbox" data-php-key="${escapeHtml(item.key)}" data-php-type="boolean" ${value?'checked':''}><span class="toggle-mark" aria-hidden="true"></span>`;
     else if(item.type==='choice')control=`<select data-php-key="${escapeHtml(item.key)}" data-php-type="choice">${unset?'<option value="" disabled selected>Padrão do PHP</option>':''}${item.options.map(option=>`<option value="${escapeHtml(option)}" ${value===option?'selected':''}>${escapeHtml(item.currentOptionAdded&&option===item.value?`Atual · ${option}`:option)}</option>`).join('')}</select>`;
-    else if(item.type==='size')control=`<span class="config-value"><input type="number" data-php-key="${escapeHtml(item.key)}" data-php-type="size" min="${item.min}" max="${item.max}" value="${escapeHtml(value)}" placeholder="Padrão PHP"><i>MB</i></span>`;
-    else if(item.type==='number')control=`<span class="config-value"><input type="number" data-php-key="${escapeHtml(item.key)}" data-php-type="number" min="${item.min}" max="${item.max}" value="${escapeHtml(value)}" placeholder="Padrão PHP">${item.suffix?`<i>${escapeHtml(item.suffix)}</i>`:''}</span>`;
+    else if(item.type==='size')control=`<span class="config-value"><input type="number" data-php-key="${escapeHtml(item.key)}" data-php-type="size" min="${escapeHtml(item.min)}" max="${escapeHtml(item.max)}" value="${escapeHtml(value)}" placeholder="Padrão PHP"><i>MB</i></span>`;
+    else if(item.type==='number')control=`<span class="config-value"><input type="number" data-php-key="${escapeHtml(item.key)}" data-php-type="number" min="${escapeHtml(item.min)}" max="${escapeHtml(item.max)}" value="${escapeHtml(value)}" placeholder="Padrão PHP">${item.suffix?`<i>${escapeHtml(item.suffix)}</i>`:''}</span>`;
     else control=`<input class="config-text" type="text" data-php-key="${escapeHtml(item.key)}" data-php-type="${escapeHtml(item.type)}" value="${escapeHtml(value)}" placeholder="${item.type==='timezone'?'America/Sao_Paulo':'Caminho .log dentro do XAMPP'}">`;
     return `<article class="php-setting-card"><div class="php-setting-copy"><span class="php-setting-key">${escapeHtml(item.key)}</span><strong>${escapeHtml(item.label)}</strong><p>${escapeHtml(item.description)}</p>${unset?'<small class="default-label">Sem valor explícito · padrão do PHP</small>':''}</div><label class="php-setting-control" aria-label="${escapeHtml(item.label)}">${control}</label></article>`
   }).join('')}</div></section>`}).join('');

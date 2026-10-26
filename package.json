@@ -1,13 +1,26 @@
 {
-  "name": "xampp-studio-ui",
-  "private": true,
+  "name": "xampp-studio",
   "version": "0.1.0",
-  "description": "Local CSS build for XAMPP Studio",
-  "scripts": {
-    "build:css": "tailwindcss -i src/tailwind.css -o .tailwind.tmp.css --minify && node scripts/build-css.cjs",
-    "test": "node tests/run-tests.cjs && node --test tests/extension-catalog.cjs && node tests/admin-targets.cjs && powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/start-safety.ps1",
-    "start": "node server.cjs"
+  "private": true,
+  "description": "Gerenciador local para instalar, ativar e trocar versões de Apache, PHP e MySQL/MariaDB no Windows, com validação e reversão automática.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
   },
+  "scripts": {
+    "start": "node server.cjs",
+    "build:css": "tailwindcss -i src/tailwind.css -o .tailwind.tmp.css --minify && node scripts/build-css.cjs",
+    "test": "node tests/run-tests.cjs && node --test tests/extension-catalog.cjs && node tests/admin-targets.cjs && powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/start-safety.ps1"
+  },
+  "keywords": [
+    "xampp",
+    "apache",
+    "php",
+    "mysql",
+    "mariadb",
+    "windows",
+    "runtime-manager"
+  ],
   "devDependencies": {
     "tailwindcss": "^3.4.17"
   }

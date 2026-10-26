@@ -83,6 +83,16 @@ export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, c => entities[c]);
 }
 
+/**
+ * URLs que podem vir de respostas de catálogos externos (Packagist, PECL):
+ * só http(s) e caminhos relativos do próprio Studio são aceitos em href.
+ * Escape de HTML não neutraliza esquemas como javascript: — o guard é aqui.
+ */
+export function safeUrl(value) {
+  const url = String(value || '');
+  return /^(?:https?:)?\/\//i.test(url) || url.startsWith('/') ? url : '#';
+}
+
 /* --- Interações ---------------------------------------------------------- */
 
 export function toast(message, warning = false) {

@@ -27,10 +27,12 @@ const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
 const APP_ROOT = path.resolve(__dirname, '..');
-const { activeApacheRuntime, readText, writeAtomically } = require('../lib/runtime-state.cjs');
+const { activeApacheRuntime, readText, serviceNameFor, writeAtomically } = require('../lib/runtime-state.cjs');
 const { apacheDenyRules, apachePrimaryPort } = require('../lib/apache-config.cjs');
 
-const SERVICE_NAME = 'Apache2.4';
+// Nome real do serviço ativo — "Apache2.4" no modo legado,
+// "XAMPPStudio-Apache" no independente (ou o que o usuário configurou).
+const SERVICE_NAME = serviceNameFor('apache');
 // Arquivos de configuração que o runtime passa a ter como próprios.
 // O httpd-ssl.conf entra na lista porque usa caminho relativo
 // ("conf/ssl.crt/server.crt"), resolvido contra o ServerRoot do runtime —

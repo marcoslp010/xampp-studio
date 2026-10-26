@@ -42,17 +42,21 @@ function readCredentials() {
 
 async function listDatabases(host, port, user, password) {
   const args = [`--host=${host}`, `--port=${port}`, `--user=${user}`, '--batch', '--skip-column-names', '-e', 'SHOW DATABASES;'];
-  if (password) args.push(`--password=${password}`);
-  const { stdout } = await execFileAsync(path.join(MYSQL_ROOT, 'bin', 'mysql.exe'), args, { timeout: 30000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
+  // A senha nunca vai para a linha de comando (legível por qualquer processo
+  // via Win32_Process.CommandLine): usa a variável de ambiente MYSQL_PWD.
+  const { stdout } = await execFileAsync(path.join(MYSQL_ROOT, 'bin', 'mysql.exe'), args, { timeout: 30000, windowsHide: true, maxBuffer: 4 * 1024 * 1024, env: mysqlClientEnv(password) });
   return stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
 }
 
 async function tableCount(host, port, user, password, database) {
   const args = [`--host=${host}`, `--port=${port}`, `--user=${user}`, '--batch', '--skip-column-names', '-e',
     `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${database.replace(/'/g, "''")}';`];
-  if (password) args.push(`--password=${password}`);
-  const { stdout } = await execFileAsync(path.join(MYSQL_ROOT, 'bin', 'mysql.exe'), args, { timeout: 30000, windowsHide: true, maxBuffer: 1024 * 1024 });
+  const { stdout } = await execFileAsync(path.join(MYSQL_ROOT, 'bin', 'mysql.exe'), args, { timeout: 30000, windowsHide: true, maxBuffer: 1024 * 1024, env: mysqlClientEnv(password) });
   return Number(stdout.trim() || 0);
+}
+
+function mysqlClientEnv(password) {
+  return password ? { ...process.env, MYSQL_PWD: password } : process.env;
 }
 
 async function waitForPort(port, timeoutMs = 60000) {
@@ -109,24 +113,33 @@ async function main() {
   const stopTemporary = async () => {
     if (!temporary) return;
     temporary = false;
-    try { process.kill(server.pid); } catch {}
+    // O desligamento administrativo vem PRIMEIRO: dá ao InnoDB o tempo de
+    // fazer flush limpo dos dados recém-importados. O kill é só fallback
+    // para um processo que não saiu — TerminateProcess no meio de uma
+    // escrita força crash recovery.
     try {
-      const adminArgs = ['--host=127.0.0.1', `--port=${TEMP_PORT}`, '--user=root', `--password=${credentials.password}`, 'shutdown'];
-      await execFileAsync(path.join(BIN, 'mariadb-admin.exe'), adminArgs, { timeout: 20000, windowsHide: true });
-    } catch {}
-    await new Promise(resolve => setTimeout(resolve, 2500));
+      const adminArgs = ['--host=127.0.0.1', `--port=${TEMP_PORT}`, '--user=root', 'shutdown'];
+      await execFileAsync(path.join(BIN, 'mariadb-admin.exe'), adminArgs, { timeout: 20000, windowsHide: true, env: mysqlClientEnv(credentials.password) });
+    } catch { /* o kill abaixo cobre o caso de o shutdown não ter funcionado */ }
+    await new Promise(resolve => {
+      const timer = setTimeout(resolve, 10000);
+      server.once('close', () => { clearTimeout(timer); resolve(); });
+    });
+    try { process.kill(server.pid); } catch {}
+    await new Promise(resolve => setTimeout(resolve, 500));
   };
 
   try {
     if (!await waitForPort(TEMP_PORT, 60000)) throw new Error(`O runtime isolado não respondeu na porta ${TEMP_PORT}.`);
     log(`    Runtime no ar. Importando o despejo...`);
     const importArgs = [
-      `--host=127.0.0.1`, `--port=${TEMP_PORT}`, `--user=root`, `--password=${credentials.password}`,
+      `--host=127.0.0.1`, `--port=${TEMP_PORT}`, '--user=root',
       '--default-character-set=utf8mb4', '--max-allowed-packet=512M'
     ];
     // mariadb.exe lê o despejo pela entrada padrão: o arquivo é canalizado
-    // para o stdin e o processo precisa terminar com código 0.
-    const child = spawn(path.join(BIN, 'mariadb.exe'), importArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    // para o stdin e o processo precisa terminar com código 0. A senha vai
+    // pelo ambiente (MYSQL_PWD), nunca pela linha de comando.
+    const child = spawn(path.join(BIN, 'mariadb.exe'), importArgs, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: mysqlClientEnv(credentials.password) });
     const stderr = [];
     child.stderr.on('data', chunk => stderr.push(chunk.toString()));
     child.stdout.on('data', () => {});

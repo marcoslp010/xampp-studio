@@ -637,11 +637,16 @@ async function readBody(req) {
 }
 
 function trustedLocalRequest(req) {
-  const host = (req.headers.host || '').split(':')[0].toLowerCase();
-  if (!['127.0.0.1', 'localhost', '::1'].includes(host)) return false;
+  // Host com [::1]: o split por ":" clássico quebra em endereços entre
+  // colchetes; a URL normaliza os três formatos de loopback.
+  let host = '';
+  try { host = new URL(`http://${req.headers.host || ''}`).hostname.toLowerCase(); } catch { return false; }
+  if (!['127.0.0.1', 'localhost', '[::1]'].includes(host)) return false;
   if (req.method === 'GET' || req.method === 'HEAD') return true;
-  const origin = req.headers.origin;
-  return origin === `http://127.0.0.1:${PORT}` || origin === `http://localhost:${PORT}`;
+  const origins = [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`, `http://[::1]:${PORT}`];
+  // Com a porta 80, o navegador omite a porta padrão no header Origin.
+  if (PORT === 80) origins.push('http://127.0.0.1', 'http://localhost', 'http://[::1]');
+  return origins.includes(req.headers.origin);
 }
 
 async function createBackup() {
@@ -2627,8 +2632,11 @@ async function switchStandaloneEnvironment(phpRoot, apacheRootChoice = null) {
   let apache = currentApache;
   if (apacheRootChoice) {
     const normalizedChoice = path.resolve(apacheRootChoice);
-    apache = listPreparedApacheRuntimes().find(item => path.resolve(item.root).toLowerCase() === normalizedChoice.toLowerCase());
-    if (!apache || !isInside(runtimesRoot, apache.root)) throw new Error('O Apache escolhido não é um runtime preparado pelo XAMPP Studio.');
+    const found = listPreparedApacheRuntimes().find(item => path.resolve(item.root).toLowerCase() === normalizedChoice.toLowerCase());
+    if (!found || !isInside(runtimesRoot, found.root)) throw new Error('O Apache escolhido não é um runtime preparado pelo XAMPP Studio.');
+    // A lista de runtimes preparados traz metadados sem caminhos: o build do
+    // Apache Lounge segue a convenção bin/httpd.exe dentro do próprio root.
+    apache = { ...found, executable: path.join(found.root, 'bin', 'httpd.exe') };
   }
   if (!fs.existsSync(apache.executable)) throw new Error('O Apache selecionado não tem executável httpd.exe.');
   const sourceConfig = fs.existsSync(path.join(apache.root, 'conf', 'httpd.conf'))
@@ -3032,6 +3040,9 @@ async function handler(req, res) {
           windowsHide: false,
           cwd: APP_ROOT
         });
+        // Uma falha de spawn aqui não pode virar uncaughtException depois
+        // que a resposta de reinício já foi entregue ao navegador.
+        child.once('error', () => {});
         child.unref();
       }, 400);
       return;
@@ -3053,8 +3064,11 @@ async function handler(req, res) {
     }
     if (req.method === 'POST' && url.pathname === '/api/services/start-type') {
       const body = await readBody(req);
-      if (typeof body.serviceName !== 'string' || !body.serviceName.trim()) return json(res, 400, { error: 'Informe o nome do serviço.' });
-      return json(res, 200, await setServiceStartType(body.serviceName.trim(), body.startType));
+      // Allowlist: o endpoint repassa o nome ao helper elevado (UAC), então
+      // só os dois serviços gerenciados pelo Studio são aceitos.
+      const managed = [serviceNameFor('apache'), serviceNameFor('mysql')];
+      if (!managed.includes(body.serviceName)) return json(res, 400, { error: 'Escolha o serviço Apache ou MySQL/MariaDB gerenciado pelo Studio.' });
+      return json(res, 200, await setServiceStartType(body.serviceName, body.startType));
     }
     if (req.method === 'POST' && url.pathname === '/api/apache/port') {
       const body = await readBody(req);

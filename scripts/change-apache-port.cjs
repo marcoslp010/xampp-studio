@@ -22,7 +22,7 @@ const { createHash } = require('node:crypto');
 const execFileAsync = promisify(execFile);
 const APP_ROOT = path.resolve(__dirname, '..');
 const BACKUP_ROOT = path.join(APP_ROOT, 'backups');
-const { activeApacheRuntime, readText, writeAtomically } = require('../lib/runtime-state.cjs');
+const { activeApacheRuntime, readText, serviceNameFor, writeAtomically } = require('../lib/runtime-state.cjs');
 const { apachePrimaryPort, rewriteApacheListenPort } = require('../lib/apache-config.cjs');
 
 function log(message) {
@@ -114,7 +114,10 @@ async function main() {
   fs.copyFileSync(config, backupFile);
   log(`Backup: ${backupFile}`);
 
-  const serviceName = 'Apache2.4';
+  // O nome real do serviço vem do estado do ambiente: no modo legado é
+  // "Apache2.4", no independente é "XAMPPStudio-Apache" (ou o nome que o
+  // usuário configurou).
+  const serviceName = serviceNameFor('apache');
   const restore = async () => {
     writeAtomically(config, fs.readFileSync(backupFile));
     const state = serviceState(serviceName);
