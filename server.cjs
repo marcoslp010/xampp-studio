@@ -1328,8 +1328,14 @@ async function unblockFirewallIp(rawIp) {
 }
 
 function compareVersions(left, right) {
-  const a = left.split('.').map(Number);
-  const b = right.split('.').map(Number);
+  // O windows.php.net versiona reempacotamentos como "8.5.12-1"; o sufixo
+  // é uma revisão do pacote e entra na comparação como quarta parte.
+  const parse = value => {
+    const match = String(value || '').match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-(\d+))?/);
+    return match ? match.slice(1).map(part => Number(part || 0)) : [];
+  };
+  const a = parse(left);
+  const b = parse(right);
   for (let index = 0; index < Math.max(a.length, b.length); index++) {
     const difference = (a[index] || 0) - (b[index] || 0);
     if (difference) return difference;
@@ -1352,12 +1358,53 @@ function readPeArchitecture(executable) {
   } finally { fs.closeSync(handle); }
 }
 
-async function listWindowsPhpReleases() {
+/**
+ * Identifica o PHP local que serve de referência ao catálogo de versões.
+ *
+ * Prefere o runtime ativo lido pelo scanStatus. Quando ele não responde —
+ * por exemplo, o estado aponta para um runtime apagado de runtimes/ — usa o
+ * PHP original do XAMPP (originalPhpRoot) e, por último, o PHP que acompanha
+ * o XAMPP. Sem essa margem o catálogo fica bloqueado justamente quando
+ * falta um runtime para baixar.
+ */
+async function resolveLocalPhpBaseline() {
   const status = await scanStatus();
-  const current = status.phpCli?.version;
-  if (!current) throw new Error('Não consegui identificar a versão do PHP local para filtrar versões superiores.');
-  const threadSafety = status.phpCli.threadSafety === 'TS' ? 'ts' : 'nts';
-  const architecture = status.phpCli.architecture === '32-bit' ? 'x86' : 'x64';
+  if (status.phpCli?.version) {
+    return { ...status.phpCli, root: status.phpRoot, source: 'runtime ativo', warning: null };
+  }
+  const environment = readEnvironmentState();
+  const declaredVersion = status.declaredVersion || environment.phpVersion || null;
+  const activeState = fs.existsSync(path.join(status.phpRoot, 'php.exe')) ? 'não respondeu' : 'não está no disco';
+  const candidates = [];
+  if (typeof environment.originalPhpRoot === 'string' && environment.originalPhpRoot.trim()) {
+    candidates.push({ root: environment.originalPhpRoot, label: 'PHP original do XAMPP' });
+  }
+  candidates.push({ root: path.join(XAMPP_ROOT, 'php'), label: 'PHP incluído no XAMPP' });
+  for (const candidate of candidates) {
+    const executable = path.join(candidate.root, 'php.exe');
+    if (!fs.existsSync(executable)) continue;
+    try {
+      const probe = await execFileAsync(executable, ['-r', 'echo PHP_VERSION,"|",(PHP_ZTS?"TS":"NTS"),"|",PHP_INT_SIZE*8;'], { timeout: 3000, windowsHide: true, maxBuffer: 4096 });
+      const [version, threadSafety, bits] = probe.stdout.trim().split('|');
+      if (!/^\d+\.\d+\.\d+/.test(version || '')) continue;
+      return {
+        version,
+        threadSafety,
+        architecture: bits === '32' ? '32-bit' : '64-bit',
+        root: candidate.root,
+        source: candidate.label,
+        warning: `O runtime ativo${declaredVersion ? ` (PHP ${declaredVersion})` : ''} ${activeState}; usando o ${candidate.label} ${version} como referência.`
+      };
+    } catch { /* candidato não respondeu; tenta o próximo */ }
+  }
+  throw new Error(`Não encontrei nenhum PHP local para servir de referência: o runtime ativo${declaredVersion ? ` (PHP ${declaredVersion} em ${status.phpRoot})` : ''} ${activeState} e nenhum PHP do XAMPP respondeu. Reinstale o XAMPP ou restaure um runtime PHP para usar o catálogo.`);
+}
+
+async function listWindowsPhpReleases() {
+  const baseline = await resolveLocalPhpBaseline();
+  const current = baseline.version;
+  const threadSafety = baseline.threadSafety === 'TS' ? 'ts' : 'nts';
+  const architecture = baseline.architecture === '32-bit' ? 'x86' : 'x64';
   const response = await fetch('https://windows.php.net/downloads/releases/releases.json', {
     headers: { accept: 'application/json', 'user-agent': 'XAMPP-Studio/0.1' }, signal: AbortSignal.timeout(10000)
   });
@@ -1366,7 +1413,7 @@ async function listWindowsPhpReleases() {
   const versions = [];
   for (const [branch, release] of Object.entries(releases)) {
     const version = release.version;
-    if (!/^\d+\.\d+\.\d+$/.test(version || '') || compareVersions(version, current) <= 0) continue;
+    if (!/^\d+\.\d+\.\d+(?:-\d+)?$/.test(version || '') || compareVersions(version, current) <= 0) continue;
     const variantEntry = Object.entries(release).find(([key]) => key.startsWith(`${threadSafety}-`) && key.endsWith(`-${architecture}`));
     const variant = variantEntry?.[1];
     if (!variant?.zip?.path || !/^[\w.-]+\.zip$/.test(variant.zip.path) || !/^[a-f0-9]{64}$/i.test(variant.zip.sha256 || '')) continue;
@@ -1379,7 +1426,15 @@ async function listWindowsPhpReleases() {
     });
   }
   versions.sort((a, b) => compareVersions(b.version, a.version));
-  return { currentVersion: current, threadSafety: threadSafety.toUpperCase(), architecture, versions, checkedAt: new Date().toISOString() };
+  return {
+    currentVersion: current,
+    threadSafety: threadSafety.toUpperCase(),
+    architecture,
+    baseline: { root: baseline.root, source: baseline.source },
+    warning: baseline.warning,
+    versions,
+    checkedAt: new Date().toISOString()
+  };
 }
 
 async function listWindowsApacheReleases() {
@@ -2292,7 +2347,10 @@ async function probePhpRuntime(root, expected) {
   const probe = await execFileAsync(executable, ['-c', ini, '-r', 'echo PHP_VERSION,"|",(PHP_ZTS?"TS":"NTS"),"|",PHP_INT_SIZE*8;'], { timeout: 8000, windowsHide: true, maxBuffer: 8192 });
   const [version, threadSafety, bits] = probe.stdout.trim().split('|');
   const architecture = bits === '64' ? 'x64' : bits === '32' ? 'x86' : null;
-  if (expected && (version !== expected.version || threadSafety !== expected.threadSafety || architecture !== expected.architecture)) {
+  // Pacotes "8.5.12-1" do windows.php.net trazem um engine que reporta
+  // "8.5.12"; a revisão do pacote não pode reprovar o runtime extraído.
+  const expectedVersion = expected ? String(expected.version).replace(/-\d+$/, '') : null;
+  if (expected && (version !== expectedVersion || threadSafety !== expected.threadSafety || architecture !== expected.architecture)) {
     throw new Error(`Runtime extraído: PHP ${version} ${threadSafety} ${architecture || bits}; selecionado: PHP ${expected.version} ${expected.threadSafety} ${expected.architecture}.`);
   }
   const modules = await execFileAsync(executable, ['-c', ini, '-m'], { timeout: 12000, windowsHide: true, maxBuffer: 32 * 1024 });
@@ -2950,7 +3008,14 @@ async function downloadWindowsPhpRuntime(version) {
     fs.mkdirSync(stagingRoot, { recursive: false });
     await execFileAsync('tar', ['-xf', archivePath, '-C', stagingRoot], { timeout: 60000, windowsHide: true, maxBuffer: 32 * 1024 });
     if (!fs.existsSync(path.join(stagingRoot, 'php.exe')) || !fs.existsSync(path.join(stagingRoot, 'ext')) || !fs.existsSync(path.join(stagingRoot, 'php.ini-development'))) throw new Error('O pacote oficial não contém a estrutura PHP esperada.');
-    const sourceIni = path.join(getConfig().phpRoot, 'php.ini');
+    // O runtime ativo pode não estar no disco (estado apontando para um
+    // runtime apagado); as configurações do usuário ficam no php.ini do PHP
+    // original do XAMPP, então ele é a segunda fonte de migração.
+    const environment = readEnvironmentState();
+    const sourceIni = [
+      path.join(getConfig().phpRoot, 'php.ini'),
+      typeof environment.originalPhpRoot === 'string' && environment.originalPhpRoot.trim() ? path.join(environment.originalPhpRoot, 'php.ini') : null
+    ].filter(Boolean).find(file => fs.existsSync(file)) || path.join(getConfig().phpRoot, 'php.ini');
     const migrated = migratePhpIni(sourceIni, targetRoot, release.version, stagingRoot);
     fs.writeFileSync(path.join(stagingRoot, 'php.ini'), migrated.ini, { flag: 'wx' });
     const metadata = { version: release.version, threadSafety: release.threadSafety, architecture: release.architecture, compiler: release.compiler, source: release.url, sha256: actualHash, extensions: migrated.extensions, installedAt: new Date().toISOString() };
