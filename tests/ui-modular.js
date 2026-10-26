@@ -1,0 +1,65 @@
+// No service or configuration changes. Preferences are isolated to this browser context.
+async page => {
+  const assert = (ok, message) => { if (!ok) throw new Error(message); };
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('#liveStatusLabel').textContent.includes('LEITURA LOCAL ATIVA'));
+  await page.locator('#customizeDashboard').click();
+  await page.locator('[name="dashboard-module"][value="php"]').uncheck();
+  await page.locator('#saveDashboard').click();
+  assert(await page.locator('[data-dashboard-module="php"]').isHidden(), 'PHP module was not hidden');
+  await page.reload();
+  assert(await page.locator('[data-dashboard-module="php"]').isHidden(), 'Preference did not survive reload');
+  await page.locator('#customizeDashboard').click();
+  for (const input of await page.locator('[name="dashboard-module"]').all()) await input.uncheck();
+  await page.locator('#saveDashboard').click();
+  assert(await page.locator('#dashboardEmpty').isVisible(), 'Empty dashboard has no recovery path');
+  await page.locator('#restoreDashboard').click();
+  await page.locator('#resetDashboard').click();
+  await page.locator('#saveDashboard').click();
+  assert(await page.locator('[data-dashboard-module]:visible').count() === 4, 'Reset did not restore modules');
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Control+k');
+    await page.locator('#commandQuery').fill('extensoes');
+    assert(await page.locator('[data-command-page]').count() === 1, 'Accent-insensitive navigation search failed');
+    await page.locator('#commandQuery').press('Enter');
+    await page.locator('#page-php.active-page').waitFor();
+  }
+  await page.keyboard.press('Control+k');
+  await page.locator('#commandQuery').fill('xxxxxyyyyy');
+  assert(await page.locator('.command-empty').isVisible(), 'Missing search empty state');
+  await page.locator('#commandQuery').fill('');
+  await page.locator('#commandQuery').press('ArrowDown');
+  assert(await page.locator('[data-command-page="php"]').evaluate(el => el === document.activeElement), 'Arrow navigation failed');
+  await page.keyboard.press('Escape');
+  await page.locator('#toolsMenu summary').click();
+  assert(await page.locator('#shellButton').isVisible(), 'Tools not reachable');
+  await page.keyboard.press('Escape');
+  assert((await page.locator('#toolsMenu').getAttribute('open')) === null, 'Escape did not close tools');
+  await page.locator('.brand').click();
+  await page.locator('#page-overview.active-page').waitFor();
+  await page.waitForFunction(() => document.querySelector('#liveStatusLabel').textContent.includes('LEITURA LOCAL ATIVA'));
+  await page.waitForFunction(() => document.querySelectorAll('.toast').length === 0);
+  await page.locator('#breadcrumbCurrent').click();
+  await page.screenshot({ path: 'docs/ui-desktop.png', fullPage: true, animations: 'disabled' });
+  await page.keyboard.press('Control+k');
+  await page.screenshot({ path: 'docs/ui-command-search.png', animations: 'disabled' });
+  await page.keyboard.press('Escape');
+  await page.locator('#customizeDashboard').click();
+  await page.screenshot({ path: 'docs/ui-customize.png', animations: 'disabled' });
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#toolsMenu summary').click();
+  for (const id of ['helpButton', 'shellButton', 'restartStudio', 'diagnosticsButton']) assert(await page.locator(`#${id}`).isVisible(), `Mobile tool ${id} missing`);
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Mobile tools overflow');
+  await page.keyboard.press('Escape');
+  await page.screenshot({ path: 'docs/ui-mobile.png', fullPage: true, animations: 'disabled' });
+  await page.locator('#openCommandSearch').click();
+  await page.locator('#commandQuery').fill('servicos');
+  await page.locator('[data-command-page="services"]').click();
+  await page.locator('#page-services.active-page').waitFor();
+  assert(errors.length === 0, errors.join('\n'));
+  return { passed: true, checks: ['module persistence', 'empty dashboard recovery', 'reset modules', 'Ctrl+K', 'accent-insensitive search', 'repeated search sessions', 'keyboard arrows', 'search empty state', 'tools Escape', 'mobile tools', 'mobile navigation search'], errors };
+}

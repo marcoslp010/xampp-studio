@@ -81,7 +81,7 @@ O Netstat é somente leitura: processos externos, como Docker ou WSL, são apena
 
 - O catálogo PHP consulta builds oficiais para Windows acima da versão ativa e mantém arquitetura e modo TS/NTS compatíveis. O ZIP passa por validação SHA-256 e é extraído em `runtimes/`.
 - Ao preparar outro PHP, o Studio leva as diretivas de extensões do `php.ini` atual quando a DLL existe no novo pacote oficial. Diretivas sem DLL compatível são comentadas para evitar erros de inicialização e aparecem como pendências daquela versão.
-- As DLLs em uso ficam registradas em `dll-registry.json`: extensões ativas do `php.ini`, `php*ts.dll`, `php*apache2_4.dll` e arquivos `LoadFile` do `httpd-xampp.conf`. Clicar em uma versão em **Versões do PHP** abre a configuração daquele runtime, com abas **Resumo**, **DLLs** e **Variáveis**. A aba DLLs lista as dependências com busca, estado (presente/ausente), cópia do inventário e atualização do registro.
+- As DLLs em uso ficam registradas em `dll-registry.json`: extensões ativas do `php.ini`, `php*ts.dll`, `php*apache2_4.dll` e arquivos `LoadFile` do `httpd-xampp.conf`. Em **Versões do PHP**, o botão **Configurar** abre a configuração daquele runtime, com abas **Resumo**, **DLLs e extensões** e **Configurações**; o botão **Extensões** do mesmo cartão vai direto para a aba de DLLs. Essa aba lista as dependências com busca, estado (presente/ausente), cópia do inventário e atualização do registro. As extensões carregadas do PHP ativo aparecem na **Visão geral** — o botão **Ver todas** abre a lista com filtro, sem página própria na navegação.
 - Antes de alterar qualquer arquivo, a configuração da versão compara o runtime de destino com esse registro. Se uma única DLL exigida não existir no novo PHP, a troca é **bloqueada** e a lista de ausentes é exibida; a versão atual continua intacta. O mesmo bloqueio é repetido no agente local, não apenas na interface.
 - Depois da verificação, a ativação garante no `php.ini` de destino as extensões exigidas pelo ambiente registrado (por exemplo, `php_redis.dll` e `php_apcu.dll` quando presentes no novo pacote), evitando que a nova versão suba com uma extensão desativada. O `php.ini` também passa a apontar o `error_log` e o `openssl.cafile` para as pastas do runtime e do Apache realmente em uso — sem isso os erros do PHP sumiam e a verificação de certificados do `curl` dependia do XAMPP antigo.
 - A ativação valida o PHP e a configuração Apache. É possível selecionar junto um Apache preparado. A troca cria backup dos arquivos e valida `httpd -t`; se o serviço não iniciar ou a porta não responder, o Studio restaura a configuração anterior.
@@ -117,11 +117,11 @@ A ação **Reparar comando**, disponível nos módulos Apache e MySQL/MariaDB e 
 
 ## Extensões e bancos
 
-Em **Versões do PHP → Configurar → DLLs**, pesquise, por exemplo, `ext-opentelemetry`, `opentelemetry` ou `php_opentelemetry.dll`. O PHP aberto é o destino fixo da consulta, do download e da instalação. Para mudar de destino, volte à lista e abra outra versão. A busca normaliza os nomes, consulta diretamente o PECL e combina os resultados com pacotes `php-ext` do Packagist. A consulta direta continua disponível se o Packagist falhar. Pacotes PIE também mantêm a opção de preparar um comando para revisão.
+Em **Versões do PHP**, use o botão **Extensões** do cartão (ou **Configurar → DLLs e extensões**) e pesquise, por exemplo, `ext-opentelemetry`, `opentelemetry` ou `php_opentelemetry.dll`. O PHP aberto é o destino fixo da consulta, do download e da instalação. Para mudar de destino, volte à lista e abra outra versão. A busca normaliza os nomes, consulta diretamente o PECL e combina os resultados com pacotes `php-ext` do Packagist. A consulta direta continua disponível se o Packagist falhar. Pacotes PIE também mantêm a opção de preparar um comando para revisão.
 
-Clique em **Ver DLLs compatíveis** para consultar as oito versões estáveis mais recentes publicadas no PECL e seus builds Windows em `https://downloads.php.net/~windows/pecl/releases/`. Só builds com versão PHP, TS/NTS, compilador e arquitetura correspondentes recebem botões de download e instalação. Quando não há build compatível, o painel informa isso. A seção **DLLs baixadas** pertence ao caminho exato daquele PHP, inclusive quando duas instalações têm o mesmo número de versão. O manifesto persiste `phpRoot`; downloads antigos usam o destino registrado na operação quando disponível. API: `GET /api/extensions/downloads?phpRoot=<caminho>` lista somente os downloads desse runtime.
+Clique em **Ver versões compatíveis** para expandir, dentro da própria lista de resultados, as oito versões estáveis mais recentes publicadas no PECL e seus builds Windows em `https://downloads.php.net/~windows/pecl/releases/`. Só builds com versão PHP, TS/NTS, compilador e arquitetura correspondentes recebem botões de download e instalação. Quando não há build compatível, o painel informa isso. A seção **DLLs baixadas** pertence ao caminho exato daquele PHP, inclusive quando duas instalações têm o mesmo número de versão. O manifesto persiste `phpRoot`; downloads antigos usam o destino registrado na operação quando disponível. API: `GET /api/extensions/downloads?phpRoot=<caminho>` lista somente os downloads desse runtime.
 
-**Baixar DLL** baixa o ZIP oficial, extrai e confere a arquitetura PE da DLL. Salva a DLL, o ZIP original e um manifesto com origem e SHA-256 em `downloads/extensions/<id>/`, sem alterar o runtime ou o `php.ini`. O navegador recebe a DLL; o botão **Salvar ZIP completo** preserva também documentação e eventuais dependências auxiliares. Os hashes são calculados localmente para registro, sem alegação de comparação com checksum publicado. API: `POST /api/extensions/download` cria a operação e `GET /api/extensions/downloads/<id>/<arquivo>` entrega o resultado.
+**Baixar DLL** baixa o ZIP oficial, extrai e confere a arquitetura PE da DLL. Salva a DLL, o ZIP original e um manifesto com origem e SHA-256 em `downloads/extensions/<id>/`, sem alterar o runtime ou o `php.ini`. A cópia no navegador é explícita: no resumo da operação, **Salvar cópia da DLL** e **Salvar ZIP completo** oferecem os arquivos; o ZIP preserva também documentação e eventuais dependências auxiliares. Os hashes são calculados localmente para registro, sem alegação de comparação com checksum publicado. API: `POST /api/extensions/download` cria a operação e `GET /api/extensions/downloads/<id>/<arquivo>` entrega o resultado.
 
 O botão **Instalar e configurar** executa o fluxo completo em segundo plano: pesquisa → seleciona build compatível → baixa → valida a arquitetura PE → extrai em staging → cria backup → copia a DLL → atualiza o `php.ini` → inicia o PHP para confirmar o módulo. Qualquer falha restaura o `php.ini` e remove a DLL recem-copiada. O hash SHA-256 do pacote e do build selecionado ficam no registro da operação.
 
@@ -180,17 +180,18 @@ O diagnóstico e a tela de status passam a mostrar a porta real e distinguem tr�
 
 ## Interface
 
-A interface usa Tailwind CSS compilado localmente junto do design system do Studio. O arquivo servido é `styles.css`; edite `src/styles.css`, `src/tailwind.css` e os templates, depois execute `npm ci` e `npm run build:css`. O CSS gerado já acompanha o projeto: abrir o painel não depende de CDN nem exige instalar pacotes. As decisões:
+A interface usa Tailwind CSS compilado localmente junto do design system do Studio. Edite os módulos em `src/styles/`, o manifesto `src/styles.css`, as telas em `src/ui/app.js` e os módulos de interação em `js/shell.js` e `js/dashboard.js`. Execute `npm run build` para gerar `styles.css` e `js/app.js`. Os arquivos compilados acompanham o projeto e usam as rotas estáticas existentes: basta atualizar o navegador, sem reiniciar o agente ou depender de CDN.
 
-- **Superfícies em camadas** com gradiente sutil no topo, borda translúcida e brilho interno (`inset 0 1px 0`), para que os cartões pareçam iluminados e não desenhados;
-- **Visão geral compacta**: PHP e integridade na primeira linha, extensões e revisão SQL na segunda; as telas se reorganizam em tablet e celular, com navegação lateral recolhível;
+- **Tema grafite e cobre**, ícones SVG consistentes, bordas discretas e cores de estado independentes do acento visual;
+- **Visão geral personalizável**: PHP, serviços, extensões e revisão SQL podem ser mostrados ou ocultados em **Personalizar**. A preferência é salva neste navegador, com opção para restaurar todos os módulos;
+- **Ferramentas agrupadas**: terminal, pastas, portas, diagnóstico e ajuda têm rótulos e continuam acessíveis no celular;
 - **Movimento com mola** (`cubic-bezier(0.16, 1, 0.3, 1)`) em botões, cartões e modais, com `prefers-reduced-motion` respeitado;
 - **Estados explícitos**: skeletons com brilho durante a leitura, chips por situação (ok, aviso, bloqueado), toasts com saída animada e modal com foco movido para a primeira ação;
 - **Acessibilidade**: foco visível em tudo, `aria-current` na navegação, `aria-live` nos toasts, contraste verificado nos textos secundários.
 
-Atalhos de teclado: `1`–`6` navegam entre as telas, `R` relê o ambiente, `D` exporta o diagnóstico e `?` abre a ajuda. Os atalhos são suspensos durante edição de campos e com um diálogo aberto. Os diálogos contêm o foco e o devolvem ao controle anterior ao fechar.
+**Ctrl+K** (ou **Cmd+K**) abre a busca por páginas e recursos, com setas, Enter e Escape. Atalhos de teclado: `1`–`6` navegam entre as telas, `R` relê o ambiente, `D` exporta o diagnóstico e `?` abre a ajuda. Os atalhos de uma tecla são suspensos durante edição de campos e com um diálogo aberto. Os diálogos contêm o foco e o devolvem ao controle anterior ao fechar.
 
-Validação: `npm test` executa a suíte original e as verificações adicionais de destinos Admin e inicialização. Com o Studio aberto, `playwright-cli run-code --filename=tests/ui-smoke.js` verifica as 11 telas em 1440, 768 e 390 pixels, filtros e diálogos. `tests/ui-states.js` verifica desconexão, reconexão, dados locais inválidos e teclado no menu móvel. Esses testes não iniciam/paralisam serviços nem aplicam configurações. Veja a avaliação e seus limites em [docs/readiness-review.md](docs/readiness-review.md).
+Validação: `npm test` executa a suíte original e as verificações adicionais de destinos Admin e inicialização. Com o Studio aberto, `playwright-cli run-code --filename=tests/ui-smoke.js` verifica as 9 telas principais em 1440, 768 e 390 pixels, filtros e diálogos. `tests/ui-states.js` verifica desconexão, reconexão, detalhes do PHP e foco no menu móvel; `tests/ui-modular.js` verifica personalização persistida, busca e ferramentas. Esses três testes não iniciam/paralisam serviços nem aplicam configurações. Também podem ser executados com `node scripts/check-ui.cjs tests/ui-smoke.js tests/ui-modular.js tests/ui-states.js`, usando uma instalação de Playwright; `PLAYWRIGHT_MODULE`, `BROWSER_EXECUTABLE` e `STUDIO_URL` permitem selecionar instalação, navegador e endereço. Veja a [revisão de UI/UX](docs/uiux-review.md).
 
 ## Organização do código
 
@@ -213,9 +214,11 @@ Validação: `npm test` executa a suíte original e as verificações adicionais
 | `scripts/build-css.cjs` | combina o CSS compilado e o tema em `styles.css` |
 | `js/core.js` | estado compartilhado, armazenamento local, toasts, modal e skeletons |
 | `js/api.js` | acesso ao agente local com tratamento de erro único |
-| `js/app.js` | telas, renderizações e atalhos |
-| `src/styles.css`, `src/tailwind.css` | fontes do tema escuro e dos componentes Tailwind |
-| `tests/run-tests.cjs` | 19 verificações automatizadas sem efeito no ambiente |
+| `src/ui/app.js` | fontes das telas, renderizações e atalhos |
+| `js/shell.js`, `js/dashboard.js` | navegação, busca e preferências dos módulos |
+| `scripts/build-js.cjs`, `js/app.js` | montagem local e entrada compilada do navegador |
+| `src/styles.css`, `src/styles/`, `src/tailwind.css` | manifesto, tokens, componentes e layouts do tema |
+| `tests/run-tests.cjs` | 23 verificações automatizadas sem efeito no ambiente |
 | `tests/extension-catalog.cjs` | testes do catálogo de extensões (Packagist/PECL) |
 | `tests/admin-targets.cjs` | destinos Admin por componente com porta real |
 | `tests/start-safety.ps1` | mata um processo só quando é a própria instância do Studio |

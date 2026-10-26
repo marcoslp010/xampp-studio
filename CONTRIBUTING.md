@@ -31,10 +31,11 @@ executar os testes e enviar mudanças com segurança.
 ## O que validar antes de abrir um PR
 
 - `npm test` passa por completo (suíte principal, destinos Admin e segurança do `start.ps1`).
-- Se você tocou em `src/styles.css` ou `src/tailwind.css`:
+- Se você tocou em `src/styles/`, `src/styles.css` ou `src/tailwind.css`:
   rode `npm run build:css` e confirme que o `styles.css` gerado foi incluído no PR —
   o painel não depende de CDN, então o CSS compilado acompanha o repositório.
-- Se você tocou em `js/app.js`, `js/core.js` ou `index.html`:
+- Edite as telas em `src/ui/app.js`, a navegação em `js/shell.js` e a personalização em `js/dashboard.js`. Execute `npm run build:js` e inclua o `js/app.js` gerado; não edite esse arquivo de saída diretamente. `npm run build` gera JS e CSS.
+- Se você tocou nessas fontes, em `js/core.js` ou `index.html`:
   descreva o que verificou manualmente (telas, atalhos, diálogos, responsividade).
 - Mudanças que afetam troca de runtime, comando de serviço ou firewall precisam de
   um novo caso de teste em `tests/run-tests.cjs` sempre que possível.

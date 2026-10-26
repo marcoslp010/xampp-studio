@@ -1,0 +1,188 @@
+/* --------------------------------------------------------------------------
+   4. Componentes
+   -------------------------------------------------------------------------- */
+
+/* --- Botões -------------------------------------------------------------- */
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, #95e2b8, var(--accent));
+  color: var(--accent-ink);
+  font-size: 13px;
+  font-weight: 620;
+  letter-spacing: -0.005em;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 10px 24px -14px rgba(200, 241, 105, 0.8);
+  transition: transform var(--fast) var(--spring), box-shadow var(--base) var(--ease), filter var(--fast) var(--ease);
+}
+.primary-button:hover { transform: translateY(-1px); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 16px 30px -14px rgba(200, 241, 105, 0.85); }
+.primary-button:active { transform: translateY(0) scale(0.985); filter: brightness(0.96); }
+.primary-button span { font-size: 14px; line-height: 1; }
+
+.outline-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-soft);
+  font-size: 12.5px;
+  font-weight: 560;
+  transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease), background var(--fast) var(--ease), transform var(--fast) var(--spring);
+}
+.outline-button:hover { color: var(--text); border-color: var(--line-lime); background: var(--accent-soft); }
+.outline-button:active { transform: scale(0.985); }
+.outline-button span { font-size: 13px; }
+
+.small-button { padding: 5px 10px; font-size: 11.5px; }
+
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 122, 122, 0.34);
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 12.5px;
+  font-weight: 560;
+  transition: background var(--fast) var(--ease), transform var(--fast) var(--spring);
+}
+.danger-button:hover { background: rgba(255, 122, 122, 0.2); }
+.danger-button:active { transform: scale(0.985); }
+
+.text-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 560;
+  transition: color var(--fast) var(--ease), gap var(--fast) var(--spring);
+}
+.text-action:hover { color: var(--accent); gap: 8px; }
+.text-action span { font-size: 13px; }
+
+.subtle-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 560;
+  transition: color var(--fast) var(--ease), background var(--fast) var(--ease), gap var(--fast) var(--spring);
+}
+.subtle-action:hover { color: var(--accent); background: var(--accent-soft); gap: 8px; }
+.subtle-action span { font-size: 12px; }
+
+.back-action { margin-bottom: 16px; }
+
+/* --- Campos -------------------------------------------------------------- */
+.search-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-faint);
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.search-box:focus-within { border-color: var(--line-lime); background: rgba(200, 241, 105, 0.04); }
+.search-box input {
+  border: 0;
+  outline: 0;
+  background: none;
+  min-width: 180px;
+  font-size: 12.5px;
+}
+.search-box input::placeholder { color: var(--text-faint); }
+
+.dll-select,
+.dll-toolbar select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+}
+.dll-select span { color: var(--text-faint); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+.dll-select select,
+.dll-toolbar select {
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+/* --- Painéis e cartões --------------------------------------------------- */
+.panel,
+.release-card,
+.version-card,
+.service-card,
+.php-setting-card,
+.runtime-summary-card,
+.catalog-package,
+.detail-card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 255, 255, 0.035), transparent 62%),
+    linear-gradient(180deg, var(--surface-2), var(--surface-1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055), var(--shadow-md);
+  transition: border-color var(--base) var(--ease), box-shadow var(--base) var(--ease), transform var(--base) var(--spring);
+}
+.panel:hover,
+.release-card:hover,
+.version-card:hover,
+.service-card:hover,
+.runtime-summary-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), var(--shadow-lg);
+}
+
+.panel { padding: 18px; }
+
+.panel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+}
+.panel-help { color: var(--text-faint); font-size: 11px; }
+
+.status-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px var(--ok-soft);
+}
+

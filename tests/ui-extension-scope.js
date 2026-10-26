@@ -26,7 +26,6 @@ async page => {
       await page.locator('#catalogForm button').click();
       await page.locator('.catalog-builds').first().click();
       await page.getByText('Fixture de escopo').waitFor();
-      await page.locator('#cancelAction').click();
       await page.locator('#backToPhpVersions').click();
     }
     assert(JSON.stringify(targets) === JSON.stringify([first.root, second.root]), 'Request was sent to another PHP');

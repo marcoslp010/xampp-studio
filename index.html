@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <svg class="icon-library" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs><symbol id="icon-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol><symbol id="icon-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/></symbol><symbol id="icon-server" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"/></symbol><symbol id="icon-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></symbol><symbol id="icon-file" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8zm0 0v5h5M8 12h8m-8 4h6"/></symbol><symbol id="icon-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol><symbol id="icon-gauge" viewBox="0 0 24 24"><path d="M4 19a10 10 0 1 1 16 0M12 12l5-5M5 14h2m10 0h2M12 4v2"/><circle cx="12" cy="14" r="2"/></symbol><symbol id="icon-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/></symbol><symbol id="icon-history" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 1 7M3 3v7h7m2-3v5l3 2"/></symbol><symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol><symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 7h5m4 0h7M4 17h9m4 0h3"/><circle cx="11" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></symbol><symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol><symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7A9 9 0 1 0 21 14M20 3v5h-5"/></symbol><symbol id="icon-terminal" viewBox="0 0 24 24"><path d="m5 6 6 6-6 6m8 0h6"/></symbol><symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 7V4h6l3 3h9v13H3z"/></symbol><symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol></defs></svg>
     <a class="skip-link" href="#mainContent">Pular para o conteúdo</a>
     <div class="app-shell">
       <aside class="sidebar" id="appSidebar" aria-label="Navegação do XAMPP Studio">
@@ -20,69 +21,87 @@
 
         <div class="workspace-label">AMBIENTE LOCAL</div>
         <button class="workspace-switch" id="workspaceButton">
-          <span class="workspace-icon">⌘</span>
+          <span class="workspace-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-terminal"/></svg></span>
           <span class="workspace-copy"><strong>Meu XAMPP</strong><small>C:\xampp</small></span>
           <span class="chevron">⌄</span>
         </button>
 
         <nav class="main-nav" aria-label="Navegação principal">
           <div class="nav-group-label">GERENCIAR</div>
-          <button class="nav-item active" data-page="overview"><span class="nav-icon">◫</span> Visão geral</button>
-          <button class="nav-item" data-page="php"><span class="nav-icon php-glyph">php</span> Versões do PHP <span class="nav-count" id="phpVersionCount">—</span></button>
-          <button class="nav-item" data-page="apache"><span class="nav-icon apache-glyph">A</span> Apache <span class="nav-count" id="apacheVersionCount">—</span></button>
-          <button class="nav-item" data-page="mysql"><span class="nav-icon mysql-glyph">M</span> MySQL / MariaDB <span class="nav-count" id="mysqlVersionCount">—</span></button>
-          <button class="nav-item" data-page="extensions"><span class="nav-icon">⧉</span> Extensões carregadas</button>
-          <button class="nav-item" data-page="database"><span class="nav-icon">▤</span> DDLs e banco</button>
+          <button class="nav-item active" data-page="overview"><span class="nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-grid"/></svg></span> Visão geral</button>
+          <button class="nav-item" data-page="php"><span class="nav-icon php-glyph"><svg class="ui-icon" aria-hidden="true"><use href="#icon-code"/></svg></span> Versões do PHP <span class="nav-count" id="phpVersionCount">—</span></button>
+          <button class="nav-item" data-page="apache"><span class="nav-icon apache-glyph"><svg class="ui-icon" aria-hidden="true"><use href="#icon-server"/></svg></span> Apache <span class="nav-count" id="apacheVersionCount">—</span></button>
+          <button class="nav-item" data-page="mysql"><span class="nav-icon mysql-glyph"><svg class="ui-icon" aria-hidden="true"><use href="#icon-database"/></svg></span> MySQL / MariaDB <span class="nav-count" id="mysqlVersionCount">—</span></button>
+          <button class="nav-item" data-page="database"><span class="nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-file"/></svg></span> Banco de dados</button>
           <div class="nav-group-label nav-group-spaced">AMBIENTE</div>
-          <button class="nav-item" data-page="services"><span class="nav-icon">◉</span> Serviços</button>
-          <button class="nav-item" data-page="performance"><span class="nav-icon">◌</span> Performance</button>
-          <button class="nav-item" data-page="firewall"><span class="nav-icon">⌑</span> Firewall</button>
-          <button class="nav-item" data-page="activity"><span class="nav-icon">↗</span> Atividade</button>
+          <button class="nav-item" data-page="services"><span class="nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-activity"/></svg></span> Serviços</button>
+          <button class="nav-item" data-page="performance"><span class="nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-gauge"/></svg></span> Performance</button>
+          <button class="nav-item" data-page="firewall"><span class="nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-shield"/></svg></span> Firewall</button>
+          <button class="nav-item" data-page="activity"><span class="nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-history"/></svg></span> Atividade</button>
         </nav>
 
         <div class="sidebar-bottom">
-          <div class="upgrade-card"><div class="upgrade-spark">✳</div><strong>Cada PHP, seu ambiente.</strong><p>Gerencie extensões e configurações dentro de cada versão.</p><button id="learnButton">Como funciona <span>↗</span></button></div>
-          <button class="user-profile" id="settingsButton"><span class="avatar">M</span><span><strong>Meu ambiente</strong><small>Configurações</small></span><span class="more">···</span></button>
+          <div class="upgrade-card"><div class="upgrade-spark"><svg class="ui-icon" aria-hidden="true"><use href="#icon-code"/></svg></div><strong>Cada PHP, seu ambiente.</strong><p>Gerencie extensões e configurações dentro de cada versão.</p><button id="learnButton">Como funciona <span>↗</span></button></div>
+          <button class="user-profile" id="settingsButton"><span class="avatar"><svg class="ui-icon" aria-hidden="true"><use href="#icon-sliders"/></svg></span><span><strong>Meu ambiente</strong><small>Configurações</small></span><span class="more">···</span></button>
         </div>
       </aside>
       <button class="sidebar-backdrop" id="sidebarBackdrop" type="button" aria-label="Fechar navegação" tabindex="-1"></button>
 
       <main class="main-content" id="mainContent" tabindex="-1">
         <header class="topbar">
-          <button class="mobile-menu-button inline-grid place-items-center rounded-lg border border-slate-700/70 bg-slate-900/80 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 active:scale-95" id="mobileMenuButton" type="button" aria-label="Abrir navegação" aria-controls="appSidebar" aria-expanded="false">☰</button>
+          <button class="mobile-menu-button inline-grid place-items-center rounded-lg border border-slate-700/70 bg-slate-900/80 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 active:scale-95" id="mobileMenuButton" type="button" aria-label="Abrir navegação" aria-controls="appSidebar" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-menu"/></svg></button>
           <div class="breadcrumb"><span>Meu XAMPP</span><i>/</i><strong id="breadcrumbCurrent">Visão geral</strong></div>
-          <div class="top-actions"><span class="safe-pill" title="Interface conectada apenas ao agente local"><span class="safe-dot"></span> Acesso local</span><button class="icon-button" id="diagnosticsButton" title="Diagnóstico · exportar o estado completo do ambiente" aria-label="Diagnóstico">◫</button><button class="icon-button" id="netstatButton" data-xampp-action="netstat" title="Netstat · portas e processos" aria-label="Netstat">⌁</button><button class="icon-button" id="shellButton" data-xampp-action="shell" title="Shell · prompt na pasta do XAMPP" aria-label="Shell">⌘</button><button class="icon-button" id="explorerButton" data-xampp-action="explorer" title="Explorer · abrir a pasta do XAMPP" aria-label="Explorer">▣</button><button class="icon-button" id="refreshStatus" title="Atualizar leitura local" aria-label="Atualizar leitura local">⟳</button><button class="icon-button" id="restartStudio" title="Reiniciar o Studio · recarrega o servidor local" aria-label="Reiniciar o Studio">⭯</button><button class="icon-button" id="helpButton" aria-label="Ajuda">?</button><span class="top-avatar">M</span></div>
+          <div class="top-actions">
+            <button class="command-trigger" id="openCommandSearch" type="button" aria-label="Buscar página" aria-keyshortcuts="Control+k Meta+k"><svg class="ui-icon" aria-hidden="true"><use href="#icon-search"/></svg><span>Ir para…</span><kbd>Ctrl K</kbd></button>
+            <span class="safe-pill" title="Interface conectada apenas ao agente local"><svg class="ui-icon" aria-hidden="true"><use href="#icon-shield"/></svg> Acesso local</span>
+            <button class="icon-button" id="refreshStatus" title="Atualizar leitura local" aria-label="Atualizar leitura local"><svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"/></svg></button>
+            <details class="tools-menu" id="toolsMenu">
+              <summary class="tools-trigger"><svg class="ui-icon" aria-hidden="true"><use href="#icon-sliders"/></svg><span>Ferramentas</span><svg class="ui-icon" aria-hidden="true"><use href="#icon-chevron"/></svg></summary>
+              <div class="tools-popover">
+                <span class="tool-group-label">AMBIENTE LOCAL</span>
+                <button id="netstatButton" data-xampp-action="netstat" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-activity"/></svg><span>Portas e processos<small>Netstat</small></span></button>
+                <button id="shellButton" data-xampp-action="shell" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-terminal"/></svg><span>Abrir terminal<small>Na pasta do ambiente</small></span></button>
+                <button id="explorerButton" data-xampp-action="explorer" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"/></svg><span>Abrir pasta<small>Arquivos do XAMPP</small></span></button>
+                <div class="tool-divider"></div>
+                <button id="diagnosticsButton" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-file"/></svg><span>Exportar diagnóstico</span></button>
+                <button id="restartStudio" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"/></svg><span>Reiniciar o Studio</span></button>
+                <button id="helpButton" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-code"/></svg><span>Ajuda e atalhos</span></button>
+              </div>
+            </details>
+          </div>
         </header>
 
         <div class="demo-banner" id="connectionBanner" role="status" aria-live="polite"><span class="demo-icon">i</span><span><strong>Conecte o gerenciador local</strong> · Inicie com <code>start.ps1</code> para ler o estado real e criar backups. Troca de PHP e SQL ainda exigem revisão explícita.</span><button id="bannerClose" aria-label="Fechar aviso">×</button></div>
 
         <section class="page active-page" id="page-overview">
-          <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> LEITURA DO AMBIENTE</div><h1>Ambiente <em>local.</em></h1><p class="heading-copy">PHP, serviços e extensões em um só lugar.</p></div><button class="primary-button" id="quickSwitch"><span>⇄</span> Gerenciar PHP</button></div>
+          <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> LEITURA DO AMBIENTE</div><h1>Seu ambiente, <em>em foco.</em></h1><p class="heading-copy">Tudo o que você precisa para desenvolver, em um só espaço.</p></div><button class="primary-button" id="quickSwitch"><svg class="ui-icon" aria-hidden="true"><use href="#icon-code"/></svg> Gerenciar PHP</button></div>
 
+          <div class="dashboard-toolbar"><div><h2>Módulos do ambiente</h2><span id="moduleCount">4 de 4 módulos</span></div><button class="outline-button small-button" id="customizeDashboard" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-sliders"/></svg> Personalizar</button></div>
+          <div class="empty-state dashboard-empty" id="dashboardEmpty" hidden><strong>Seu painel está livre.</strong><p>Escolha os módulos que deseja acompanhar aqui.</p><button class="outline-button" id="restoreDashboard" type="button">Escolher módulos</button></div>
           <div class="overview-grid">
-            <article class="panel php-panel">
+            <article class="panel php-panel" data-dashboard-module="php">
               <div class="panel-top"><div class="panel-title"><span class="status-indicator"></span><span>PHP ATIVO</span></div><button class="subtle-action" data-goto="php">Gerenciar versões <span>↗</span></button></div>
               <div class="php-version-line"><span class="php-version" id="activeVersion">—</span><span class="stable-badge" id="activeVersionState"><span></span> Aguardando leitura</span></div>
               <div class="php-details"><div><small>INTERPRETADOR</small><strong id="phpBuildInfo">Aguardando leitura local</strong></div><div><small>CARREGADO PELO</small><strong id="apacheVersionInfo">Aguardando leitura local</strong></div><div><small>CONFIGURAÇÃO</small><strong id="phpConfigInfo">Aguardando leitura local</strong></div></div>
               <div class="version-visual"><div class="visual-line"><span class="visual-node past"></span><span class="visual-track"></span><span class="visual-node current"></span><span class="visual-track"></span><span class="visual-node future"></span></div><div class="visual-labels"><span id="phpVersionLeft">aguardando</span><strong id="phpVersionCenter">—</strong><span id="phpVersionRight">leitura</span></div></div>
             </article>
 
-            <article class="panel service-panel">
-              <div class="panel-top"><div class="panel-title"><span>INTEGRIDADE</span></div><span class="live-label" id="liveStatusLabel"><span></span> AGUARDANDO AGENTE</span></div>
+            <article class="panel service-panel" data-dashboard-module="services">
+              <div class="panel-top"><div class="panel-title"><span>ESTADO DOS SERVIÇOS</span></div><span class="live-label" id="liveStatusLabel"><span></span> AGUARDANDO AGENTE</span></div>
               <div class="integrity-score"><span class="score-ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-base" cx="50" cy="50" r="42"></circle><circle class="ring-value" cx="50" cy="50" r="42"></circle></svg><b id="integrityScore">—</b></span><span><strong id="integrityTitle">Aguardando leitura</strong><small id="integrityDescription">Conecte o agente local.</small></span></div>
               <div class="service-list"><div><span class="service-name"><i class="service-square apache">A</i> Apache</span><span class="service-state" id="apacheState"><i></i> Verificando</span><span class="port">:80</span></div><div><span class="service-name"><i class="service-square mysql">M</i> MySQL</span><span class="service-state" id="mysqlState"><i></i> Verificando</span><span class="port">:3306</span></div></div>
             </article>
 
-            <article class="panel extensions-panel">
-              <div class="panel-top"><div class="panel-title"><span>EXTENSÕES PHP</span></div><button class="text-action" data-goto="extensions">Ver todas <span>→</span></button></div>
+            <article class="panel extensions-panel" data-dashboard-module="extensions">
+              <div class="panel-top"><div class="panel-title"><svg class="ui-icon" aria-hidden="true"><use href="#icon-code"/></svg><span>EXTENSÕES PHP</span></div><button class="text-action" id="openExtensionsModal" type="button">Ver todas <span>→</span></button></div>
               <div class="extensions-count"><strong>—</strong><span>PHP CLI</span><span class="count-divider"></span><span>aguardando leitura local</span></div>
               <div class="extension-tags" aria-live="polite"><span>aguardando agente local</span></div>
               <div class="extension-footer" id="extensionDataFooter"><span class="tiny-check">·</span> Sem dados até conectar ao agente</div>
             </article>
 
-            <article class="panel database-panel">
-              <div class="panel-top"><div class="panel-title"><span>MIGRAÇÕES SQL</span></div><span class="quiet-status">Somente análise</span></div>
-              <div class="database-content"><div class="database-icon">▤</div><div><strong>Seu banco continua no lugar.</strong><p>Revise o SQL antes de importar. Faça backup antes de aplicar.</p></div></div>
+            <article class="panel database-panel" data-dashboard-module="database">
+              <div class="panel-top"><div class="panel-title"><svg class="ui-icon" aria-hidden="true"><use href="#icon-database"/></svg><span>REVISÃO SQL</span></div><span class="quiet-status">Somente análise</span></div>
+              <div class="database-content"><div class="database-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-database"/></svg></div><div><strong>Revise antes de importar.</strong><p>Analise seu arquivo SQL e confira as operações previstas.</p></div></div>
               <button class="outline-button" id="importSqlButton"><span>＋</span> Revisar arquivo .sql</button>
             </article>
           </div>
@@ -115,13 +134,13 @@
           </div>
           <div class="detail-panel" id="version-panel-dlls" role="tabpanel" aria-labelledby="version-tab-dlls" tabindex="0" data-detail-panel="dlls" hidden>
             <section id="versionExtensionCatalog" class="extension-workspace" aria-labelledby="extensionCatalogTitle">
-              <div class="section-heading"><div><div class="eyebrow">CATÁLOGO DE EXTENSÕES</div><h2 id="extensionCatalogTitle">Buscar uma DLL</h2><p class="panel-help">Encontre um build compatível com este PHP.</p></div><span class="source-label">PECL + PIE</span></div>
+              <div class="section-heading"><div><div class="eyebrow">INSTALAR EXTENSÃO</div><h2 id="extensionCatalogTitle">Buscar extensão</h2><p class="panel-help">Digite o nome da extensão, abra as versões compatíveis com este PHP e clique em <strong>Instalar e configurar</strong>. O Studio cria backup e valida antes de ativar.</p></div></div>
               <div class="runtime-target" id="catalogRuntime" aria-live="polite">Selecione uma versão do PHP.</div>
-              <form class="catalog-search min-w-0" id="catalogForm"><label class="search-box min-w-0"><span aria-hidden="true">⌕</span><input id="catalogQuery" class="flex-1" type="search" maxlength="80" placeholder="Ex.: ext-opentelemetry…" aria-label="Pesquisar extensão PHP" autocomplete="off" spellcheck="false" name="extension" /></label><button class="primary-button" type="submit">Buscar extensão <span aria-hidden="true">→</span></button></form>
+              <form class="catalog-search min-w-0" id="catalogForm"><label class="search-box min-w-0"><span aria-hidden="true">⌕</span><input id="catalogQuery" class="flex-1" type="search" maxlength="80" placeholder="Ex.: redis, xdebug, opentelemetry…" aria-label="Pesquisar extensão PHP" autocomplete="off" spellcheck="false" name="extension" /></label><button class="primary-button" type="submit">Buscar <span aria-hidden="true">→</span></button></form>
               <div class="catalog-suggestions"><span>Experimente</span><button type="button" data-extension-query="ext-opentelemetry">OpenTelemetry</button><button type="button" data-extension-query="redis">Redis</button><button type="button" data-extension-query="xdebug">Xdebug</button></div>
-              <p class="catalog-context" id="catalogContext" role="status">Os resultados usam a versão do PHP aberta nesta tela.</p>
+              <p class="catalog-context" id="catalogContext" role="status">A busca usa a versão do PHP aberta nesta tela.</p>
               <div class="catalog-results" id="catalogResults" aria-live="polite"></div>
-              <details class="extension-help"><summary>Qual a diferença entre baixar e instalar?</summary><p><strong>Baixar</strong> salva a DLL e o ZIP original. <strong>Instalar e configurar</strong> adiciona a DLL ao PHP desta versão, cria backup e valida o carregamento.</p></details>
+              <details class="extension-help"><summary>Qual a diferença entre baixar e instalar?</summary><p><strong>Instalar e configurar</strong> é o caminho recomendado: copia a DLL para este PHP, ajusta o php.ini com backup e valida o carregamento. <strong>Baixar DLL</strong> apenas guarda o arquivo na biblioteca desta versão, sem ativar nada.</p></details>
             </section>
             <section class="download-workspace" aria-labelledby="extensionDownloadsTitle"><div class="section-heading"><div><div class="eyebrow">BIBLIOTECA DESTA VERSÃO</div><h2 id="extensionDownloadsTitle">DLLs baixadas <span class="section-count" id="extensionDownloadCount">0</span></h2></div><button class="outline-button small-button" id="refreshExtensionDownloads" type="button">Atualizar</button></div><div id="extensionDownloads" class="download-list" aria-live="polite"></div></section>
             <details class="runtime-dependencies" id="runtimeDependencies"><summary><span>Inventário e dependências <small>DLLs exigidas pelo ambiente e arquivos ausentes</small></span><span class="disclosure-arrow" aria-hidden="true">⌄</span></summary><div class="dependency-content">
@@ -146,15 +165,11 @@
               <label class="search-box"><span>⌕</span><input aria-label="Buscar configuração PHP" id="phpSettingsSearch" type="search" placeholder="Buscar variável ou descrição" autocomplete="off"></label>
             </div>
             <div class="notice-card" id="phpSettingsNotice"><span class="notice-symbol">i</span><div><strong id="phpSettingsNoticeTitle">Configurações seguras e revisadas.</strong><p id="phpSettingsNoticeCopy">O Studio altera apenas opções conhecidas e cria uma cópia antes de salvar.</p></div><span class="notice-chip" id="phpSettingsActiveChip">VERSÃO ISOLADA</span></div>
-            <div class="php-settings-grid" id="phpSettingsGrid"><div class="empty-state"><strong>Carregue uma versão</strong><p>Selecione uma versão e abra a aba Variáveis para ler o php.ini dela.</p></div></div>
+            <div class="php-settings-grid" id="phpSettingsGrid"><div class="empty-state"><strong>Carregue uma versão</strong><p>Selecione uma versão e abra a aba Configurações para ler o php.ini dela.</p></div></div>
             <div class="modal-note settings-restart-note" id="phpSettingsRestartNote">Alterações em uma versão isolada são validadas pelo php.exe dela e não reiniciam o Apache.</div>
             <div class="settings-save-row"><span class="catalog-context" id="phpSettingsDirtyLabel">Nenhuma alteração pendente.</span><button class="primary-button" id="savePhpSettings" type="button">Salvar alterações</button></div>
           </div>
         </section>
-
-        <section class="page" id="page-extensions"><div class="page-heading compact-heading"><div><div class="eyebrow" id="extensionBuildInfo"><span class="eyebrow-line"></span> PHP CLI LOCAL</div><h1>Extensões <em>DLL.</em></h1><p class="heading-copy">Veja o que está carregado ou procure um pacote compatível.</p></div><button class="outline-button" data-goto="php">Escolher PHP para baixar DLL</button><button class="primary-button" id="importDllButton"><span>↑</span> Revisar DLL</button></div><div class="notice-card green-notice"><span class="notice-symbol">✓</span><div><strong id="extensionActiveTitle">Aguardando leitura local das extensões.</strong><p>A lista abaixo reflete o PHP CLI; a compatibilidade do módulo Apache ainda requer validação própria.</p></div></div><div class="extensions-full"><div class="section-heading"><div><div class="eyebrow">PHP CLI</div><h2>Extensões carregadas</h2></div><div class="search-box"><span>⌕</span><input aria-label="Filtrar extensões carregadas" id="extensionSearch" placeholder="Buscar extensão" /></div></div><div class="extension-grid" id="extensionGrid"></div></div><button class="dropzone" id="dropzone"><span class="drop-icon">↑</span><span><strong>Solte uma DLL aqui ou <u>escolha um arquivo</u></strong><small>Arquivo adicionado apenas à revisão; ainda não é instalado · .dll</small></span><input aria-label="Selecionar DLL para revisão" type="file" id="dllInput" accept=".dll" hidden /></button></section>
-
-        
 
         <section class="page" id="page-database"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> MYSQL · IMPORTAÇÃO COM REVISÃO</div><h1>Banco de <em>dados.</em></h1><p class="heading-copy">Entenda o que vai mudar antes de aplicar qualquer SQL.</p></div><button class="primary-button" id="importSqlButton2"><span>＋</span> Revisar arquivo .sql</button></div><div class="database-summary"><div class="summary-metric"><span class="summary-icon">▤</span><div><small>CONEXÃO LOCAL</small><strong>MySQL/MariaDB <i>·</i> localhost:3306</strong></div><span class="connected" id="mysqlConnection"><i></i> Aguardando leitura</span></div><div class="summary-metric"><span class="summary-icon">◷</span><div><small>ÚLTIMO BACKUP</small><strong id="lastBackupLabel">Nenhum backup registrado</strong></div><button class="text-action" id="backupButton">Criar backup de configuração <span>→</span></button></div></div><div class="empty-state"><span class="empty-illustration">▤</span><strong>Pronto para revisar sua primeira migração</strong><p>Escolha um arquivo .sql para ver as instruções e sinalizar operações delicadas antes de executar.</p><button class="outline-button" id="importSqlButton3">Escolher arquivo SQL</button></div><input aria-label="Selecionar arquivo SQL" type="file" id="sqlInput" accept=".sql,text/plain" hidden /></section>
 

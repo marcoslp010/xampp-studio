@@ -33,7 +33,6 @@ export const state = {
   liveVersions: [],
   liveStatus: null,
   apiAvailable: false,
-  pendingDlls: [],
   sqlFile: null,
   sqlText: '',
   selectedVersion: null,
@@ -130,6 +129,11 @@ export function closeModal() {
 
 const modalDialog = $('#modal');
 modalDialog.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeModal();
+    return;
+  }
   if (event.key !== 'Tab') return;
   const candidates = [...modalDialog.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[tabindex]:not([tabindex="-1"])')]
     .filter(element => !element.hidden && element.getAttribute('aria-hidden') !== 'true' && element.getClientRects().length);
@@ -149,10 +153,17 @@ modalDialog.addEventListener('keydown', event => {
   }
 });
 modalDialog.addEventListener('close', () => {
+  // A dialog can be reopened before the previous close event is delivered.
+  if (modalDialog.open) return;
   const returnTarget = modalReturnFocus;
   modalReturnFocus = null;
   if (returnTarget?.isConnected && typeof returnTarget.focus === 'function') {
-    requestAnimationFrame(() => returnTarget.focus({ preventScroll: true }));
+    requestAnimationFrame(() => {
+      if (modalDialog.open) return;
+      const closedDisclosure = returnTarget.closest('details:not([open])');
+      const visibleTarget = closedDisclosure?.querySelector('summary') || returnTarget;
+      if (visibleTarget.getClientRects().length && !visibleTarget.closest('[inert]')) visibleTarget.focus({ preventScroll: true });
+    });
   }
 });
 

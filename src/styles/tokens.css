@@ -1,0 +1,77 @@
+/* ==========================================================================
+   XAMPP Studio — design system
+   Direção: grafite com acento cobre; estados semânticos independentes.
+   Ordem: tokens → base → layout → componentes → páginas → responsivo.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Tokens
+   -------------------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+
+  /* superfícies */
+  --canvas: #101113;
+  --canvas-soft: #15171a;
+  --surface-1: #191b1f;
+  --surface-2: #202227;
+  --surface-3: #292c32;
+  --surface-glass: rgba(16, 17, 19, .94);
+  --surface-hover: rgba(255, 255, 255, 0.035);
+  --surface-active: rgba(255, 255, 255, 0.06);
+
+  /* texto */
+  --text: #f1f1f3;
+  --text-soft: #c9cbd0;
+  --text-muted: #a0a4ae;
+  --text-faint: #90959f;
+
+  /* traços */
+  --line: rgba(207, 212, 225, .1);
+  --line-strong: rgba(207, 212, 225, .2);
+  --line-lime: var(--accent-line);
+
+  /* acento e estados */
+  --accent: #efab78;
+  --accent-soft: rgba(239, 171, 120, .1);
+  --accent-line: rgba(239, 171, 120, .4);
+  --accent-ink: #26190f;
+  --ok: #75d6a5;
+  --ok-soft: rgba(117, 214, 165, 0.13);
+  --warn: #f5c563;
+  --warn-soft: rgba(245, 197, 99, 0.13);
+  --danger: #ff7a7a;
+  --danger-soft: rgba(255, 122, 122, 0.13);
+  --info: #7cc4ff;
+  --info-soft: rgba(124, 196, 255, 0.12);
+
+  /* tipografia */
+  --font-sans: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
+
+  /* ritmo */
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 13px;
+  --radius-lg: 14px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* elevação */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 10px 30px -14px rgba(0, 0, 0, 0.75);
+  --shadow-lg: 0 26px 60px -22px rgba(0, 0, 0, 0.85);
+
+  /* movimento */
+  --spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --fast: 140ms;
+  --base: 220ms;
+  --slow: 420ms;
+
+  /* layout */
+  --sidebar-w: 244px;
+  --topbar-h: 64px;
+  --content-max: 1440px;
+}
+
