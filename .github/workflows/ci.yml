@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  tests:
+    # O Studio gerencia serviços do Windows (sc.exe, netstat, UAC), então os
+    # testes rodam no runner do Windows. Eles usam stubs e nunca instalam,
+    # iniciam ou param serviços reais.
+    name: Testes automatizados
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Dependências de desenvolvimento (Tailwind)
+        run: npm ci
+
+      - name: Suíte principal (PE, compatibilidade, comando de serviço)
+        run: node tests/run-tests.cjs
+
+      - name: Destinos Admin
+        run: node tests/admin-targets.cjs
+
+      - name: Segurança do start.ps1
+        shell: pwsh
+        run: ./tests/start-safety.ps1
+
+      - name: Verificar sintaxe do server e das libs
+        shell: pwsh
+        run: |
+          $files = @('server.cjs') + (Get-ChildItem lib -Filter *.cjs | ForEach-Object { $_.FullName })
+          foreach ($file in $files) { node --check $file; if ($LASTEXITCODE -ne 0) { throw "Falha de sintaxe em $file" } }
+
+      - name: Build do CSS (valida o pipeline de estilos)
+        run: npm run build:css

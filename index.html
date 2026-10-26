@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0e12" />
+    <title>XAMPP Studio — seu ambiente, sob controle</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23101311'/%3E%3Cpath d='M18 18l28 28M46 18L18 46' stroke='%23c8f169' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#mainContent">Pular para o conteúdo</a>
+    <div class="app-shell">
+      <aside class="sidebar" id="appSidebar" aria-label="Navegação do XAMPP Studio">
+        <a class="brand" href="#inicio" aria-label="XAMPP Studio, início">
+          <span class="brand-mark"><span></span><span></span><span></span></span>
+          <span class="brand-name">xampp<span>studio</span></span>
+          <span class="brand-tag">BETA</span>
+        </a>
+
+        <div class="workspace-label">AMBIENTE LOCAL</div>
+        <button class="workspace-switch" id="workspaceButton">
+          <span class="workspace-icon">⌘</span>
+          <span class="workspace-copy"><strong>Meu XAMPP</strong><small>C:\xampp</small></span>
+          <span class="chevron">⌄</span>
+        </button>
+
+        <nav class="main-nav" aria-label="Navegação principal">
+          <div class="nav-group-label">GERENCIAR</div>
+          <button class="nav-item active" data-page="overview"><span class="nav-icon">◫</span> Visão geral</button>
+          <button class="nav-item" data-page="php"><span class="nav-icon php-glyph">php</span> Versões do PHP <span class="nav-count" id="phpVersionCount">—</span></button>
+          <button class="nav-item" data-page="apache"><span class="nav-icon apache-glyph">A</span> Apache <span class="nav-count" id="apacheVersionCount">—</span></button>
+          <button class="nav-item" data-page="mysql"><span class="nav-icon mysql-glyph">M</span> MySQL / MariaDB <span class="nav-count" id="mysqlVersionCount">—</span></button>
+          <button class="nav-item" data-page="extensions"><span class="nav-icon">⧉</span> Extensões carregadas</button>
+          <button class="nav-item" data-page="database"><span class="nav-icon">▤</span> DDLs e banco</button>
+          <div class="nav-group-label nav-group-spaced">AMBIENTE</div>
+          <button class="nav-item" data-page="services"><span class="nav-icon">◉</span> Serviços</button>
+          <button class="nav-item" data-page="performance"><span class="nav-icon">◌</span> Performance</button>
+          <button class="nav-item" data-page="firewall"><span class="nav-icon">⌑</span> Firewall</button>
+          <button class="nav-item" data-page="activity"><span class="nav-icon">↗</span> Atividade</button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="upgrade-card"><div class="upgrade-spark">✳</div><strong>Cada PHP, seu ambiente.</strong><p>Gerencie extensões e configurações dentro de cada versão.</p><button id="learnButton">Como funciona <span>↗</span></button></div>
+          <button class="user-profile" id="settingsButton"><span class="avatar">M</span><span><strong>Meu ambiente</strong><small>Configurações</small></span><span class="more">···</span></button>
+        </div>
+      </aside>
+      <button class="sidebar-backdrop" id="sidebarBackdrop" type="button" aria-label="Fechar navegação" tabindex="-1"></button>
+
+      <main class="main-content" id="mainContent" tabindex="-1">
+        <header class="topbar">
+          <button class="mobile-menu-button inline-grid place-items-center rounded-lg border border-slate-700/70 bg-slate-900/80 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 active:scale-95" id="mobileMenuButton" type="button" aria-label="Abrir navegação" aria-controls="appSidebar" aria-expanded="false">☰</button>
+          <div class="breadcrumb"><span>Meu XAMPP</span><i>/</i><strong id="breadcrumbCurrent">Visão geral</strong></div>
+          <div class="top-actions"><span class="safe-pill" title="Interface conectada apenas ao agente local"><span class="safe-dot"></span> Acesso local</span><button class="icon-button" id="diagnosticsButton" title="Diagnóstico · exportar o estado completo do ambiente" aria-label="Diagnóstico">◫</button><button class="icon-button" id="netstatButton" data-xampp-action="netstat" title="Netstat · portas e processos" aria-label="Netstat">⌁</button><button class="icon-button" id="shellButton" data-xampp-action="shell" title="Shell · prompt na pasta do XAMPP" aria-label="Shell">⌘</button><button class="icon-button" id="explorerButton" data-xampp-action="explorer" title="Explorer · abrir a pasta do XAMPP" aria-label="Explorer">▣</button><button class="icon-button" id="refreshStatus" title="Atualizar leitura local" aria-label="Atualizar leitura local">⟳</button><button class="icon-button" id="restartStudio" title="Reiniciar o Studio · recarrega o servidor local" aria-label="Reiniciar o Studio">⭯</button><button class="icon-button" id="helpButton" aria-label="Ajuda">?</button><span class="top-avatar">M</span></div>
+        </header>
+
+        <div class="demo-banner" id="connectionBanner" role="status" aria-live="polite"><span class="demo-icon">i</span><span><strong>Conecte o gerenciador local</strong> · Inicie com <code>start.ps1</code> para ler o estado real e criar backups. Troca de PHP e SQL ainda exigem revisão explícita.</span><button id="bannerClose" aria-label="Fechar aviso">×</button></div>
+
+        <section class="page active-page" id="page-overview">
+          <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> LEITURA DO AMBIENTE</div><h1>Ambiente <em>local.</em></h1><p class="heading-copy">PHP, serviços e extensões em um só lugar.</p></div><button class="primary-button" id="quickSwitch"><span>⇄</span> Gerenciar PHP</button></div>
+
+          <div class="overview-grid">
+            <article class="panel php-panel">
+              <div class="panel-top"><div class="panel-title"><span class="status-indicator"></span><span>PHP ATIVO</span></div><button class="subtle-action" data-goto="php">Gerenciar versões <span>↗</span></button></div>
+              <div class="php-version-line"><span class="php-version" id="activeVersion">—</span><span class="stable-badge" id="activeVersionState"><span></span> Aguardando leitura</span></div>
+              <div class="php-details"><div><small>INTERPRETADOR</small><strong id="phpBuildInfo">Aguardando leitura local</strong></div><div><small>CARREGADO PELO</small><strong id="apacheVersionInfo">Aguardando leitura local</strong></div><div><small>CONFIGURAÇÃO</small><strong id="phpConfigInfo">Aguardando leitura local</strong></div></div>
+              <div class="version-visual"><div class="visual-line"><span class="visual-node past"></span><span class="visual-track"></span><span class="visual-node current"></span><span class="visual-track"></span><span class="visual-node future"></span></div><div class="visual-labels"><span id="phpVersionLeft">aguardando</span><strong id="phpVersionCenter">—</strong><span id="phpVersionRight">leitura</span></div></div>
+            </article>
+
+            <article class="panel service-panel">
+              <div class="panel-top"><div class="panel-title"><span>INTEGRIDADE</span></div><span class="live-label" id="liveStatusLabel"><span></span> AGUARDANDO AGENTE</span></div>
+              <div class="integrity-score"><span class="score-ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-base" cx="50" cy="50" r="42"></circle><circle class="ring-value" cx="50" cy="50" r="42"></circle></svg><b id="integrityScore">—</b></span><span><strong id="integrityTitle">Aguardando leitura</strong><small id="integrityDescription">Conecte o agente local.</small></span></div>
+              <div class="service-list"><div><span class="service-name"><i class="service-square apache">A</i> Apache</span><span class="service-state" id="apacheState"><i></i> Verificando</span><span class="port">:80</span></div><div><span class="service-name"><i class="service-square mysql">M</i> MySQL</span><span class="service-state" id="mysqlState"><i></i> Verificando</span><span class="port">:3306</span></div></div>
+            </article>
+
+            <article class="panel extensions-panel">
+              <div class="panel-top"><div class="panel-title"><span>EXTENSÕES PHP</span></div><button class="text-action" data-goto="extensions">Ver todas <span>→</span></button></div>
+              <div class="extensions-count"><strong>—</strong><span>PHP CLI</span><span class="count-divider"></span><span>aguardando leitura local</span></div>
+              <div class="extension-tags" aria-live="polite"><span>aguardando agente local</span></div>
+              <div class="extension-footer" id="extensionDataFooter"><span class="tiny-check">·</span> Sem dados até conectar ao agente</div>
+            </article>
+
+            <article class="panel database-panel">
+              <div class="panel-top"><div class="panel-title"><span>MIGRAÇÕES SQL</span></div><span class="quiet-status">Somente análise</span></div>
+              <div class="database-content"><div class="database-icon">▤</div><div><strong>Seu banco continua no lugar.</strong><p>Revise o SQL antes de importar. Faça backup antes de aplicar.</p></div></div>
+              <button class="outline-button" id="importSqlButton"><span>＋</span> Revisar arquivo .sql</button>
+            </article>
+          </div>
+
+          <section class="activity-section"><div class="section-heading"><div><div class="eyebrow">REGISTRO DO AMBIENTE</div><h2>Atividade recente</h2></div><button class="text-action" data-goto="activity">Ver histórico completo <span>→</span></button></div><div class="activity-table"><div class="activity-row activity-head"><span>EVENTO</span><span>DETALHES</span><span>QUANDO</span><span>ESTADO</span></div><div class="activity-row"><span class="event-cell"><i class="event-icon check-event">·</i> Nenhuma ação registrada</span><span class="detail-cell">Os backups aparecerão aqui após serem criados.</span><span class="time-cell">—</span><span class="result-chip done">—</span></div></div></section>
+          <footer class="page-footer"><span>XAMPP Studio · Gerenciamento local</span><span>v0.1.0 <i>·</i> Configurações com backup</span></footer>
+        </section>
+
+        <section class="page" id="page-php">
+          <div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> RUNTIMES ISOLADOS</div><h1>Versões do <em>PHP.</em></h1><p class="heading-copy">Baixe builds oficiais, abra a configuração de cada versão e troque com validação.</p></div><button class="primary-button" id="addVersion"><span>＋</span> Adicionar versão</button></div>
+          <div class="notice-card"><span class="notice-symbol">↻</span><div><strong>Escolha uma versão para trabalhar.</strong><p>Abra uma versão para buscar DLLs e editar o php.ini. Ativar o PHP é uma ação separada, com backup e validação.</p></div><span class="notice-chip">BACKUP + VALIDAÇÃO</span></div>
+          <div class="version-list" id="versionList"></div>
+          <div class="catalog-context php-version-hint">Selecione uma versão para configurar DLLs, variáveis e ativação.</div>
+        </section>
+
+        <section class="page" id="page-version">
+          <button class="text-action back-action" id="backToPhpVersions" type="button">← Voltar para versões do PHP</button>
+          <div class="page-heading compact-heading version-detail-heading">
+            <div><div class="eyebrow">CONFIGURAÇÃO DA VERSÃO</div><h1>PHP <span id="versionDetailTitle">—</span></h1><p class="heading-copy" id="versionDetailSubtitle">Selecione uma versão na lista para configurar.</p></div>
+            <div class="version-detail-actions"><span class="version-detail-chip" id="versionDetailState">—</span><button class="primary-button" id="activateSelectedVersion" type="button">Usar esta versão</button></div>
+          </div>
+          <div class="version-detail-summary" id="versionDetailSummary"><span>Nenhuma versão selecionada.</span></div>
+          <div class="version-detail-tabs" role="tablist" aria-label="Configuração da versão">
+            <button class="detail-tab active" type="button" role="tab" data-detail-tab="overview" id="version-tab-overview" aria-controls="version-panel-overview" tabindex="0" aria-selected="true">Resumo</button>
+            <button class="detail-tab" type="button" role="tab" data-detail-tab="dlls" id="version-tab-dlls" aria-controls="version-panel-dlls" tabindex="-1" aria-selected="false">DLLs e extensões</button>
+            <button class="detail-tab" type="button" role="tab" data-detail-tab="settings" id="version-tab-settings" aria-controls="version-panel-settings" tabindex="-1" aria-selected="false">Configurações</button>
+          </div>
+          <div class="detail-panel" id="version-panel-overview" role="tabpanel" aria-labelledby="version-tab-overview" tabindex="0" data-detail-panel="overview">
+            <div class="version-detail-grid" id="versionDetailOverview"><div class="empty-state"><strong>Nenhuma versão selecionada</strong><p>Volte para a lista e abra a versão que deseja configurar.</p></div></div>
+          </div>
+          <div class="detail-panel" id="version-panel-dlls" role="tabpanel" aria-labelledby="version-tab-dlls" tabindex="0" data-detail-panel="dlls" hidden>
+            <section id="versionExtensionCatalog" class="extension-workspace" aria-labelledby="extensionCatalogTitle">
+              <div class="section-heading"><div><div class="eyebrow">CATÁLOGO DE EXTENSÕES</div><h2 id="extensionCatalogTitle">Buscar uma DLL</h2><p class="panel-help">Encontre um build compatível com este PHP.</p></div><span class="source-label">PECL + PIE</span></div>
+              <div class="runtime-target" id="catalogRuntime" aria-live="polite">Selecione uma versão do PHP.</div>
+              <form class="catalog-search min-w-0" id="catalogForm"><label class="search-box min-w-0"><span aria-hidden="true">⌕</span><input id="catalogQuery" class="flex-1" type="search" maxlength="80" placeholder="Ex.: ext-opentelemetry…" aria-label="Pesquisar extensão PHP" autocomplete="off" spellcheck="false" name="extension" /></label><button class="primary-button" type="submit">Buscar extensão <span aria-hidden="true">→</span></button></form>
+              <div class="catalog-suggestions"><span>Experimente</span><button type="button" data-extension-query="ext-opentelemetry">OpenTelemetry</button><button type="button" data-extension-query="redis">Redis</button><button type="button" data-extension-query="xdebug">Xdebug</button></div>
+              <p class="catalog-context" id="catalogContext" role="status">Os resultados usam a versão do PHP aberta nesta tela.</p>
+              <div class="catalog-results" id="catalogResults" aria-live="polite"></div>
+              <details class="extension-help"><summary>Qual a diferença entre baixar e instalar?</summary><p><strong>Baixar</strong> salva a DLL e o ZIP original. <strong>Instalar e configurar</strong> adiciona a DLL ao PHP desta versão, cria backup e valida o carregamento.</p></details>
+            </section>
+            <section class="download-workspace" aria-labelledby="extensionDownloadsTitle"><div class="section-heading"><div><div class="eyebrow">BIBLIOTECA DESTA VERSÃO</div><h2 id="extensionDownloadsTitle">DLLs baixadas <span class="section-count" id="extensionDownloadCount">0</span></h2></div><button class="outline-button small-button" id="refreshExtensionDownloads" type="button">Atualizar</button></div><div id="extensionDownloads" class="download-list" aria-live="polite"></div></section>
+            <details class="runtime-dependencies" id="runtimeDependencies"><summary><span>Inventário e dependências <small>DLLs exigidas pelo ambiente e arquivos ausentes</small></span><span class="disclosure-arrow" aria-hidden="true">⌄</span></summary><div class="dependency-content">
+            <div class="section-heading dll-section-heading">
+              <div><div class="eyebrow">DLLS REGISTRADAS</div><h2>Dependências desta versão</h2></div>
+              <div class="dll-toolbar">
+                <label class="search-box"><span>⌕</span><input aria-label="Filtrar DLLs registradas" id="dllSearch" type="search" maxlength="80" placeholder="Filtrar DLL, fonte ou caminho" autocomplete="off" /></label>
+                <label class="dll-select"><span>ESTADO</span><select id="dllStatusFilter"><option value="all">Todas</option><option value="present">Presentes</option><option value="missing">Ausentes</option></select></label>
+                <button class="outline-button small-button find-missing-dlls" type="button">⌕ Buscar ausentes</button>
+                <button class="outline-button small-button" id="copyDllRegistry" type="button">Copiar</button>
+                <button class="outline-button small-button" id="refreshDllRegistry" type="button">⟳ Atualizar</button>
+              </div>
+            </div>
+            <div class="notice-card green-notice" id="dllRegistryNotice"><span class="notice-symbol" id="dllRegistrySymbol">✓</span><div><strong id="dllRegistryTitle">Aguardando leitura local.</strong><p id="dllRegistryCopy">Conecte o agente para registrar as DLLs carregadas pelo php.ini e pelo Apache.</p></div><span class="notice-chip" id="dllRegistryChip">REGISTRO ATIVO</span></div>
+            <div class="dll-registry-summary" id="dllRegistrySummary"><span>Nenhum registro lido.</span></div>
+            <div class="section-heading compact-section-heading"><div><div class="eyebrow">VERIFICAÇÃO DO RUNTIME</div><h2>DLLs exigidas</h2></div><span class="catalog-context" id="dllRegistryChecked"></span></div>
+            <div class="dll-registry-list" id="dllRegistryList" aria-live="polite"><div class="empty-state"><strong>Registro ainda não carregado</strong><p>Abra o agente local para ler as DLLs ativas no XAMPP.</p></div></div></div></details>
+          </div>
+          <div class="detail-panel" id="version-panel-settings" role="tabpanel" aria-labelledby="version-tab-settings" tabindex="0" data-detail-panel="settings" hidden>
+            <div class="section-heading php-settings-toolbar">
+              <div><div class="eyebrow">PHP.INI DESTA VERSÃO</div><h2 id="phpSettingsFile">Aguardando leitura local</h2></div>
+              <label class="search-box"><span>⌕</span><input aria-label="Buscar configuração PHP" id="phpSettingsSearch" type="search" placeholder="Buscar variável ou descrição" autocomplete="off"></label>
+            </div>
+            <div class="notice-card" id="phpSettingsNotice"><span class="notice-symbol">i</span><div><strong id="phpSettingsNoticeTitle">Configurações seguras e revisadas.</strong><p id="phpSettingsNoticeCopy">O Studio altera apenas opções conhecidas e cria uma cópia antes de salvar.</p></div><span class="notice-chip" id="phpSettingsActiveChip">VERSÃO ISOLADA</span></div>
+            <div class="php-settings-grid" id="phpSettingsGrid"><div class="empty-state"><strong>Carregue uma versão</strong><p>Selecione uma versão e abra a aba Variáveis para ler o php.ini dela.</p></div></div>
+            <div class="modal-note settings-restart-note" id="phpSettingsRestartNote">Alterações em uma versão isolada são validadas pelo php.exe dela e não reiniciam o Apache.</div>
+            <div class="settings-save-row"><span class="catalog-context" id="phpSettingsDirtyLabel">Nenhuma alteração pendente.</span><button class="primary-button" id="savePhpSettings" type="button">Salvar alterações</button></div>
+          </div>
+        </section>
+
+        <section class="page" id="page-extensions"><div class="page-heading compact-heading"><div><div class="eyebrow" id="extensionBuildInfo"><span class="eyebrow-line"></span> PHP CLI LOCAL</div><h1>Extensões <em>DLL.</em></h1><p class="heading-copy">Veja o que está carregado ou procure um pacote compatível.</p></div><button class="outline-button" data-goto="php">Escolher PHP para baixar DLL</button><button class="primary-button" id="importDllButton"><span>↑</span> Revisar DLL</button></div><div class="notice-card green-notice"><span class="notice-symbol">✓</span><div><strong id="extensionActiveTitle">Aguardando leitura local das extensões.</strong><p>A lista abaixo reflete o PHP CLI; a compatibilidade do módulo Apache ainda requer validação própria.</p></div></div><div class="extensions-full"><div class="section-heading"><div><div class="eyebrow">PHP CLI</div><h2>Extensões carregadas</h2></div><div class="search-box"><span>⌕</span><input aria-label="Filtrar extensões carregadas" id="extensionSearch" placeholder="Buscar extensão" /></div></div><div class="extension-grid" id="extensionGrid"></div></div><button class="dropzone" id="dropzone"><span class="drop-icon">↑</span><span><strong>Solte uma DLL aqui ou <u>escolha um arquivo</u></strong><small>Arquivo adicionado apenas à revisão; ainda não é instalado · .dll</small></span><input aria-label="Selecionar DLL para revisão" type="file" id="dllInput" accept=".dll" hidden /></button></section>
+
+        
+
+        <section class="page" id="page-database"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> MYSQL · IMPORTAÇÃO COM REVISÃO</div><h1>Banco de <em>dados.</em></h1><p class="heading-copy">Entenda o que vai mudar antes de aplicar qualquer SQL.</p></div><button class="primary-button" id="importSqlButton2"><span>＋</span> Revisar arquivo .sql</button></div><div class="database-summary"><div class="summary-metric"><span class="summary-icon">▤</span><div><small>CONEXÃO LOCAL</small><strong>MySQL/MariaDB <i>·</i> localhost:3306</strong></div><span class="connected" id="mysqlConnection"><i></i> Aguardando leitura</span></div><div class="summary-metric"><span class="summary-icon">◷</span><div><small>ÚLTIMO BACKUP</small><strong id="lastBackupLabel">Nenhum backup registrado</strong></div><button class="text-action" id="backupButton">Criar backup de configuração <span>→</span></button></div></div><div class="empty-state"><span class="empty-illustration">▤</span><strong>Pronto para revisar sua primeira migração</strong><p>Escolha um arquivo .sql para ver as instruções e sinalizar operações delicadas antes de executar.</p><button class="outline-button" id="importSqlButton3">Escolher arquivo SQL</button></div><input aria-label="Selecionar arquivo SQL" type="file" id="sqlInput" accept=".sql,text/plain" hidden /></section>
+
+        <section class="page" id="page-apache">
+          <div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> APACHE HTTP SERVER · WINDOWS</div><h1>Runtime do <em>Apache.</em></h1><p class="heading-copy">Baixe builds compatíveis, prepare um runtime isolado e valide antes de ativar.</p></div><button class="primary-button" id="refreshApacheReleases">Atualizar catálogo</button></div>
+          <div class="notice-card green-notice" id="apacheModuleNotice"><span class="notice-symbol">i</span><div><strong>Aguardando leitura do agente local.</strong><p>Os binários Windows do Apache são publicados por terceiros indicados pelo projeto Apache; o SHA-256 é conferido antes da extração.</p></div><span class="notice-chip">VALIDAÇÃO OBRIGATÓRIA</span></div>
+          <article class="panel runtime-service-panel"><div class="panel-top"><div><div class="panel-title">CONTROLE PELO WINDOWS</div><p class="panel-help">Registre o Apache ativo como serviço para iniciar e reiniciar por aqui. A primeira integração pode abrir o aviso UAC.</p><span class="catalog-context" id="apacheModuleServiceState">Aguardando leitura do serviço</span></div><div class="runtime-service-actions"><button class="outline-button small-button grant-service-control" data-grant-control="apache" disabled>Liberar controles</button><button class="outline-button small-button service-action" data-service="apache" disabled>Aguardando leitura</button><button class="outline-button small-button service-stop" data-service-stop="apache" disabled>Parar</button><button class="outline-button small-button service-repair" data-service-repair="apache" type="button">Reparar comando</button></div></div><div class="service-tool-row"><button class="service-tool" data-xampp-action="config" data-component="apache" type="button">Config</button><button class="service-tool" data-xampp-action="logs" data-component="apache" type="button">Logs</button><button class="service-tool" data-xampp-action="shell" data-component="apache" type="button">Shell</button><button class="service-tool" data-xampp-action="admin" data-component="apache" type="button">Admin</button></div></article>
+          <div class="runtime-module-summary" id="apacheModuleSummary"><div class="empty-state"><strong>Runtime Apache ainda não lido.</strong><p>Inicie o agente local para identificar versão, arquitetura e origem.</p></div></div>
+          <div class="section-heading runtime-section-heading"><div><div class="eyebrow">RUNTIMES ISOLADOS</div><h2>Versões preparadas</h2></div><span class="catalog-context" id="apachePreparedContext">—</span></div>
+          <div class="release-list" id="apachePreparedList"><div class="catalog-context">Nenhum runtime preparado ainda.</div></div>
+          <div class="section-heading runtime-section-heading"><div><div class="eyebrow">CATÁLOGO OFICIAL REFERENCIADO</div><h2>Versões disponíveis para Windows</h2></div></div>
+          <div class="release-list" id="apacheReleaseList"><div class="catalog-loading">Inicie o agente local para consultar versões.</div></div>
+        </section>
+
+        <section class="page" id="page-mysql">
+          <div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> MYSQL · MARIADB · WINDOWS</div><h1>Runtimes do <em>banco.</em></h1><p class="heading-copy">Compare fontes oficiais, prepare dados isolados e troque o serviço com reversão.</p></div><button class="primary-button" id="refreshMySqlReleases">Atualizar catálogo</button></div>
+          <div class="notice-card green-notice" id="mysqlModuleNotice"><span class="notice-symbol">i</span><div><strong>MySQL e MariaDB usam fontes oficiais diferentes.</strong><p>Os pacotes são verificados pelo checksum publicado. Cada versão recebe um diretório de dados próprio, sem alterar o banco atual.</p></div><span class="notice-chip">DADOS ISOLADOS</span></div>
+          <article class="panel runtime-service-panel"><div class="panel-top"><div><div class="panel-title">CONTROLE PELO WINDOWS</div><p class="panel-help">Registre o MySQL/MariaDB ativo como serviço para iniciar e reiniciar por aqui. A primeira integração pode abrir o aviso UAC.</p><span class="catalog-context" id="mysqlModuleServiceState">Aguardando leitura do serviço</span></div><div class="runtime-service-actions"><button class="outline-button small-button grant-service-control" data-grant-control="mysql" disabled>Liberar controles</button><button class="outline-button small-button service-action" data-service="mysql" disabled>Aguardando leitura</button><button class="outline-button small-button service-stop" data-service-stop="mysql" disabled>Parar</button><button class="outline-button small-button service-repair" data-service-repair="mysql" type="button">Reparar comando</button></div></div><div class="service-tool-row"><button class="service-tool" data-xampp-action="config" data-component="mysql" type="button">Config</button><button class="service-tool" data-xampp-action="logs" data-component="mysql" type="button">Logs</button><button class="service-tool" data-xampp-action="shell" data-component="mysql" type="button">Shell</button><button class="service-tool" data-xampp-action="admin" data-component="mysql" type="button">Admin</button></div></article>
+          <div class="runtime-module-summary" id="mysqlModuleSummary"><div class="empty-state"><strong>Runtime de banco ainda não lido.</strong><p>Inicie o agente local para identificar produto, versão e origem.</p></div></div>
+          <div class="section-heading runtime-section-heading"><div><div class="eyebrow">RUNTIMES ISOLADOS</div><h2>Versões preparadas</h2></div><span class="catalog-context" id="mysqlPreparedContext">—</span></div>
+          <div class="release-list" id="mysqlPreparedList"><div class="catalog-context">Nenhum runtime preparado ainda.</div></div>
+          <div class="section-heading runtime-section-heading"><div><div class="eyebrow">CATÁLOGOS OFICIAIS</div><h2>MySQL Community e MariaDB</h2></div></div>
+          <div class="release-list" id="mysqlReleaseList"><div class="catalog-loading">Inicie o agente local para consultar versões.</div></div>
+        </section>
+
+        <section class="page" id="page-services">
+          <div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> COMPONENTES LOCAIS</div><h1>Serviços do <em>ambiente.</em></h1><p class="heading-copy">Integre Apache e MySQL uma vez; depois inicie, pare e reinicie tudo pelo XAMPP Studio.</p></div></div>
+          <div class="version-list service-cards">
+            <article class="version-card service-card w-full min-w-0">
+              <div class="version-card-main"><i class="service-square apache">A</i><div><strong>Apache</strong><small>Servidor web · porta <span id="apachePortLabel">80</span></small></div></div>
+              <span class="service-state"><i></i> Aguardando leitura</span>
+              <div class="service-card-actions w-full min-w-0"><button class="outline-button small-button service-action" data-service="apache" disabled>Aguardando leitura</button><button class="outline-button small-button service-stop" data-service-stop="apache" disabled>Parar</button><button class="outline-button small-button service-repair" data-service-repair="apache" type="button">Reparar comando</button><button class="outline-button small-button service-port" id="changeApachePort" type="button">Mudar porta</button></div>
+              <div class="service-card-tools w-full min-w-0"><button class="service-tool" data-xampp-action="config" data-component="apache" type="button">Config</button><button class="service-tool" data-xampp-action="logs" data-component="apache" type="button">Logs</button><button class="service-tool" data-xampp-action="shell" data-component="apache" type="button">Shell</button><button class="service-tool" data-xampp-action="admin" data-component="apache" type="button">Admin</button><button class="service-tool" id="openSiteButton" type="button">Abrir site</button></div>
+            </article>
+            <article class="version-card service-card w-full min-w-0">
+              <div class="version-card-main"><i class="service-square mysql">M</i><div><strong>MySQL/MariaDB</strong><small>Banco de dados · porta 3306</small></div></div>
+              <span class="service-state"><i></i> Aguardando leitura</span>
+              <div class="service-card-actions w-full min-w-0"><button class="outline-button small-button service-action" data-service="mysql" disabled>Aguardando leitura</button><button class="outline-button small-button service-stop" data-service-stop="mysql" disabled>Parar</button><button class="outline-button small-button service-repair" data-service-repair="mysql" type="button">Reparar comando</button></div>
+              <div class="service-card-tools w-full min-w-0"><button class="service-tool" data-xampp-action="config" data-component="mysql" type="button">Config</button><button class="service-tool" data-xampp-action="logs" data-component="mysql" type="button">Logs</button><button class="service-tool" data-xampp-action="shell" data-component="mysql" type="button">Shell</button><button class="service-tool" data-xampp-action="admin" data-component="mysql" type="button">Admin</button></div>
+            </article>
+          </div>
+          <article class="panel xampp-tools-panel">
+            <div class="panel-top"><div><div class="panel-title">FERRAMENTAS DO XAMPP</div><p class="panel-help">Atalhos equivalentes ao XAMPP Control Panel, executados pelo agente local no Windows.</p></div><span class="catalog-context">Acesso rápido</span></div>
+            <div class="xampp-tool-grid">
+              <button class="xampp-tool" data-xampp-action="netstat" type="button"><span class="xampp-tool-icon">⌁</span><strong>Netstat</strong><small>Portas, PIDs e processos</small></button>
+              <button class="xampp-tool" data-xampp-action="shell" type="button"><span class="xampp-tool-icon">⌘</span><strong>Shell</strong><small>Prompt na pasta do XAMPP</small></button>
+              <button class="xampp-tool" data-xampp-action="explorer" type="button"><span class="xampp-tool-icon">▣</span><strong>Explorer</strong><small>Abrir a pasta do XAMPP</small></button>
+              <button class="xampp-tool" data-xampp-action="logs" type="button"><span class="xampp-tool-icon">≡</span><strong>Logs</strong><small>Pasta de logs</small></button>
+              <button class="xampp-tool" data-xampp-action="config" data-component="apache" type="button"><span class="xampp-tool-icon apache">A</span><strong>Config Apache</strong><small>httpd.conf</small></button>
+              <button class="xampp-tool" data-xampp-action="config" data-component="mysql" type="button"><span class="xampp-tool-icon mysql">M</span><strong>Config MySQL</strong><small>my.ini</small></button>
+              <button class="xampp-tool" data-xampp-action="admin" data-component="apache" type="button"><span class="xampp-tool-icon">↗</span><strong>Admin web</strong><small>http://localhost</small></button>
+              <button class="xampp-tool" data-xampp-action="admin" data-component="mysql" type="button"><span class="xampp-tool-icon">◈</span><strong>Admin banco</strong><small>phpMyAdmin</small></button>
+            </div>
+          </article>
+          <div class="notice-card" id="serviceControlNotice"><span class="notice-symbol">i</span><div><strong>Controle do XAMPP aguardando leitura.</strong><p>O Studio pode registrar os serviços do XAMPP no Windows e assumir o controle por esta tela.</p></div></div>
+        </section>
+
+        <section class="page" id="page-performance"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> AJUSTE DE RECURSOS</div><h1>Performance <em>equilibrada.</em></h1><p class="heading-copy">Distribua a memória e a concorrência entre PHP/Apache e MySQL, reservando RAM para o Windows.</p></div><button class="primary-button" id="applyPerformance">Aplicar ajustes</button></div><div class="notice-card green-notice"><span class="notice-symbol">i</span><div><strong>20% da memória estimada fica reservada para o Windows.</strong><p>Os controles ajustam concorrência, memória por execução PHP, cache do banco e conexões. Eles não impõem um teto exato de CPU por serviço.</p></div><span class="notice-chip" id="performanceHardware">LENDO COMPUTADOR</span></div><div class="performance-layout"><article class="panel performance-panel"><div class="panel-top"><div class="panel-title">DIVISÃO DO ORÇAMENTO DE MEMÓRIA DOS SERVIÇOS</div><span class="stable-badge">RESERVA DO WINDOWS · 20% RAM</span></div><p class="panel-help">Os dois controles somam 100% do orçamento restante. Ao mover um, o outro se recalibra automaticamente.</p><div class="resource-slider"><div class="slider-heading"><span><i class="service-square apache">A</i><strong>PHP + Apache</strong></span><output id="performanceApacheValue">50%</output></div><input id="performanceApache" type="range" min="20" max="80" step="1" value="50" aria-label="Orçamento para PHP e Apache"><div class="range-labels"><span>20%</span><span>50%</span><span>80%</span></div><small>Controla quantos pedidos podem ser atendidos ao mesmo tempo e o limite de memória do PHP.</small></div><div class="resource-slider"><div class="slider-heading"><span><i class="service-square mysql">M</i><strong>MySQL / MariaDB</strong></span><output id="performanceMysqlValue">50%</output></div><input id="performanceMysql" type="range" min="20" max="80" step="1" value="50" aria-label="Orçamento para MySQL"><div class="range-labels"><span>20%</span><span>50%</span><span>80%</span></div><small>Ajusta o cache do banco e as conexões simultâneas; outros buffers do MySQL variam conforme o projeto.</small></div><div class="resource-summary" id="performanceSummary">Conecte o agente para calcular os limites sugeridos.</div></article><aside class="panel performance-explainer"><div class="panel-title">O QUE SERÁ AJUSTADO</div><div class="checklist"><div><i>↗</i> Apache: limite de requisições simultâneas</div><div><i>↗</i> PHP: memória máxima por execução</div><div><i>↗</i> MySQL: cache e conexões simultâneas</div><div><i>✓</i> Arquivos de configuração terão backup</div></div><div class="modal-note">As mudanças só entram em vigor após validar os arquivos e reiniciar os serviços gerenciados. O Studio reverte os arquivos se a validação falhar.</div></aside></div></section>
+
+
+        <section class="page" id="page-firewall"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> PROTEÇÃO DO AMBIENTE</div><h1>Firewall <em>local.</em></h1><p class="heading-copy">Consulte requisições registradas, bloqueie endereços e revise o acesso via Cloudflare.</p></div><div class="firewall-heading-actions"><button class="outline-button" id="refreshFirewall">Atualizar registros</button><button class="primary-button" id="blockIpButton">Bloquear IP</button></div></div><div class="notice-card" id="firewallNotice"><span class="notice-symbol">i</span><div><strong>Os registros dependem da configuração atual do Apache e do Windows.</strong><p>O log do Apache mostra IP, método e caminho. A captura do corpo é opcional e filtra dados sensíveis; “Raw” mostra a linha original filtrada.</p></div></div><article class="panel cloudflare-panel"><div class="panel-top"><div><div class="panel-title">ACESSO AO SITE POR CLOUDFLARE</div><p class="panel-help">Permite conexões nas portas 80 e 443 apenas das faixas oficiais da Cloudflare, após revisar conflitos existentes.</p></div><button class="outline-button" id="cloudflareAction">Verificar configuração</button></div><div class="cloudflare-state" id="cloudflareState">Ainda não verificado</div></article><article class="panel body-capture-panel"><div class="panel-top"><div><div class="panel-title">CAPTURA FILTRADA DO CORPO · PHP</div><p class="panel-help">Opcional. Registra JSON e formulários até 16 KB, oculta campos de senha e token, e ignora uploads. A captura se aplica aos sites PHP deste XAMPP.</p></div><button class="outline-button" id="bodyCaptureAction">Verificar captura</button></div><div class="cloudflare-state" id="bodyCaptureState">Desativada</div></article><div class="section-heading firewall-section-heading"><div><div class="eyebrow">TRÁFEGO RECENTE</div><h2>Registros de acesso</h2></div><label class="search-box"><span>⌕</span><input aria-label="Filtrar registros de acesso" id="firewallSearch" type="search" placeholder="Buscar IP, método ou caminho" autocomplete="off"></label></div><div class="firewall-log-list" id="firewallLogList"><div class="empty-state"><strong>Conecte o agente local</strong><p>O XAMPP Studio mostrará os registros já existentes no Apache e no Firewall do Windows.</p></div></div><div class="section-heading firewall-section-heading blocked-heading"><div><div class="eyebrow">REGRAS CRIADAS PELO STUDIO</div><h2>IPs bloqueados</h2></div></div><div class="blocked-ip-list" id="blockedIpList"><div class="catalog-context">Nenhum IP bloqueado por este Studio.</div></div></section>
+
+        <section class="page" id="page-activity"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> HISTÓRICO LOCAL</div><h1>Atividade <em>recente.</em></h1><p class="heading-copy">O histórico fica neste navegador e pode ser exportado.</p></div><button class="outline-button" id="exportLog">↓ Exportar registro</button></div><div class="activity-table full-activity" id="activityTable"><div class="activity-row activity-head"><span>EVENTO</span><span>DETALHES</span><span>QUANDO</span><span>ESTADO</span></div><div class="activity-row"><span class="event-cell"><i class="event-icon check-event">·</i> Nenhuma ação registrada</span><span class="detail-cell">Backups, downloads preparados e reinícios aparecerão aqui.</span><span class="time-cell">—</span><span class="result-chip done">—</span></div></div></section>
+      </main>
+    </div>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+    <dialog class="modal" id="modal" aria-labelledby="modalKicker"><div class="modal-top"><span class="modal-kicker" id="modalKicker">AÇÃO</span><button class="modal-close" id="modalClose" aria-label="Fechar diálogo">×</button></div><div id="modalContent"></div></dialog>
+    <input aria-label="Selecionar arquivo SQL" type="file" id="sqlInputFallback" accept=".sql,text/plain" hidden />
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

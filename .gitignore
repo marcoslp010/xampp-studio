@@ -1,0 +1,55 @@
+# ------------------------------------------------------------------
+# XAMPP Studio — .gitignore
+#
+# Este projeto grava estado, backups, runtimes baixados e dados de
+# bancos DENTRO da própria pasta. Nada disso pertence ao repositório:
+# inclui credenciais do MySQL (workspace/mysql/credentials), dumps
+# SQL, data dirs e binários de terceiros com dezenas de MB.
+# ------------------------------------------------------------------
+
+# Dependências
+node_modules/
+
+# Estado de runtime do Studio (recriados automaticamente)
+environment-state.json
+dll-registry.json
+performance-state.json
+firewall-state.json
+request-body-log.php
+
+# Ferramenta pessoal de auditoria: referencia bancos e caminhos locais do usuário
+scripts/audit-db-credentials.cjs
+
+# Dados e operações do Studio (podem conter credenciais e bancos reais)
+workspace/
+backups/
+runtimes/
+downloads/
+jobs/
+logs/
+
+# Artefatos de build
+.tailwind.tmp.css
+
+# Ferramentas de desenvolvimento / sessões locais
+.playwright-cli/
+
+# Sistema operacional
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs e dumps genéricos
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

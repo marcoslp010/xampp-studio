@@ -1,0 +1,14 @@
+{
+  "name": "xampp-studio-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local CSS build for XAMPP Studio",
+  "scripts": {
+    "build:css": "tailwindcss -i src/tailwind.css -o .tailwind.tmp.css --minify && node scripts/build-css.cjs",
+    "test": "node tests/run-tests.cjs && node --test tests/extension-catalog.cjs && node tests/admin-targets.cjs && powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/start-safety.ps1",
+    "start": "node server.cjs"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

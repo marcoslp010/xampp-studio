@@ -1,0 +1,9 @@
+# Normaliza finais de linha no repositório: LF no Git, CRLF no checkout
+# Windows. Ferramenta 100% Windows, mas o CI e revisores agradecem.
+* text=auto
+
+# Imagens e binários não são convertidos
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary
