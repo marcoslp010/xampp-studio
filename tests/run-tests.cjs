@@ -43,7 +43,8 @@ const {
   apacheServerName,
   rewriteApacheListenPort
 } = require('../lib/apache-config.cjs');
-const { isInside } = require('../lib/runtime-state.cjs');
+const { isInside, readText, writeAtomically } = require('../lib/runtime-state.cjs');
+const { renderDiagnosticsMarkdown, tailFile } = require('../lib/diagnostics.cjs');
 
 const XAMPP_ROOT = process.env.XAMPP_ROOT || 'C:\\xampp';
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -357,6 +358,53 @@ test('isInside rejeita travessia e aceita apenas caminhos internos', () => {
   assert.equal(isInside(parent, path.resolve(parent, '..', 'arquivo-externo.js')), false);
   assert.equal(isInside(parent, `${parent}-vizinho`), false);
   assert.equal(isInside(parent, path.parse(parent).root), false);
+});
+
+// ---------------------------------------------------------------------------
+// Estado, logs e diagnóstico
+// ---------------------------------------------------------------------------
+
+test('readText ignora BOM e writeAtomically cria a pasta de destino', () => {
+  const root = temporaryDirectory('studio-state-');
+  const file = path.join(root, 'nested', 'state.json');
+  writeAtomically(file, JSON.stringify({ a: 1 }));
+  writeAtomically(file, JSON.stringify({ a: 2 }));
+  assert.deepEqual(JSON.parse(readText(file)), { a: 2 });
+  const bom = path.join(root, 'bom.json');
+  fs.writeFileSync(bom, '\uFEFF{"ok":true}', 'utf8');
+  assert.deepEqual(JSON.parse(readText(bom)), { ok: true });
+  assert.deepEqual(fs.readdirSync(path.dirname(file)).filter(name => name.endsWith('.tmp')), []);
+});
+
+test('tailFile lê apenas o fim do arquivo e descarta a linha truncada', () => {
+  const root = temporaryDirectory('studio-tail-');
+  const file = path.join(root, 'error.log');
+  const lines = Array.from({ length: 200 }, (_, index) => `linha ${String(index).padStart(3, '0')} ${'x'.repeat(80)}`);
+  fs.writeFileSync(file, lines.join('\n'), 'utf8');
+  assert.deepEqual(tailFile(file, 3, 400), lines.slice(-3));
+  assert.deepEqual(tailFile(path.join(root, 'missing.log')), []);
+});
+
+test('renderDiagnosticsMarkdown neutraliza pipes e cercas vindas do ambiente', () => {
+  const report = {
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    studio: { node: 'v20', platform: 'win32', port: 43197, windowsAdmin: false },
+    environment: { mode: 'standalone', xamppRoot: 'C:/xampp' },
+    components: { PHP: { version: '8.5|12', executable: 'C:/xampp/php/php.exe', sha256: 'a'.repeat(64), running: true } },
+    services: [{ serviceName: 'Apache|Teste', state: 'running', stateLabel: 'em execução', imagePath: 'C:/x|y/httpd.exe' }],
+    ports: { 80: { active: true, summary: 'httpd|8080', managed: true } },
+    compatibility: [],
+    certificate: null,
+    phpIniHighlights: { memory_limit: '512M|1G' },
+    jobs: [{ type: 'x|y', status: 'succeeded', createdAt: '2026-01-01', error: 'linha1\nlinha2' }],
+    logs: { apacheError: ['antes', '```', 'depois'], mysqlError: [] }
+  };
+  const markdown = renderDiagnosticsMarkdown(report);
+  assert.match(markdown, /8\.5\\\|12/);
+  assert.match(markdown, /Apache\\\|Teste/);
+  assert.ok(markdown.includes('linha1 linha2'));
+  assert.ok(markdown.includes('``\u200B`'));
+  assert.equal(markdown.split(/\r?\n/).filter(line => line === '```').length, 5);
 });
 
 // ---------------------------------------------------------------------------

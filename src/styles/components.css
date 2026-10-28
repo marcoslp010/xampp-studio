@@ -10,15 +10,15 @@
   gap: 8px;
   padding: 9px 16px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(180deg, #95e2b8, var(--accent));
+  background: linear-gradient(180deg, #f6c8a2, var(--accent));
   color: var(--accent-ink);
   font-size: 13px;
   font-weight: 620;
   letter-spacing: -0.005em;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 10px 24px -14px rgba(200, 241, 105, 0.8);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 10px 24px -14px rgba(239, 171, 120, 0.7);
   transition: transform var(--fast) var(--spring), box-shadow var(--base) var(--ease), filter var(--fast) var(--ease);
 }
-.primary-button:hover { transform: translateY(-1px); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 16px 30px -14px rgba(200, 241, 105, 0.85); }
+.primary-button:hover { transform: translateY(-1px); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 16px 30px -14px rgba(239, 171, 120, 0.8); }
 .primary-button:active { transform: translateY(0) scale(0.985); filter: brightness(0.96); }
 .primary-button span { font-size: 14px; line-height: 1; }
 
@@ -36,7 +36,7 @@
   font-weight: 560;
   transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease), background var(--fast) var(--ease), transform var(--fast) var(--spring);
 }
-.outline-button:hover { color: var(--text); border-color: var(--line-lime); background: var(--accent-soft); }
+.outline-button:hover { color: var(--text); border-color: var(--accent-line); background: var(--accent-soft); }
 .outline-button:active { transform: scale(0.985); }
 .outline-button span { font-size: 13px; }
 
@@ -99,7 +99,7 @@
   color: var(--text-faint);
   transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
 }
-.search-box:focus-within { border-color: var(--line-lime); background: rgba(200, 241, 105, 0.04); }
+.search-box:focus-within { border-color: var(--accent-line); background: rgba(239, 171, 120, 0.04); }
 .search-box input {
   border: 0;
   outline: 0;

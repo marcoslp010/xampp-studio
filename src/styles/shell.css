@@ -79,7 +79,7 @@
   margin-left: auto;
   padding: 2px 7px;
   border-radius: var(--radius-xs);
-  border: 1px solid var(--line-lime);
+  border: 1px solid var(--accent-line);
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 9px;
@@ -164,7 +164,7 @@
   border-radius: 0 3px 3px 0;
   background: var(--accent);
   transform: translateY(-50%);
-  box-shadow: 0 0 12px rgba(200, 241, 105, 0.6);
+  box-shadow: 0 0 12px rgba(239, 171, 120, 0.5);
 }
 
 .nav-icon {
@@ -212,7 +212,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background:
-    radial-gradient(120% 90% at 100% 0%, rgba(200, 241, 105, 0.12), transparent 60%),
+    radial-gradient(120% 90% at 100% 0%, rgba(239, 171, 120, 0.11), transparent 60%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
@@ -258,7 +258,7 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: linear-gradient(140deg, var(--accent), #8fd13f);
+  background: linear-gradient(140deg, #f6c8a2, var(--accent));
   color: var(--accent-ink);
   font-size: 12px;
   font-weight: 700;

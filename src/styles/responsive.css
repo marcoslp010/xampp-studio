@@ -50,7 +50,7 @@ body { background-color: var(--canvas); }
 .workspace-switch { border-color: var(--line); background: rgba(255,255,255,.025); }
 .nav-group-label { color: #748291; }
 .nav-item { min-height: 38px; }
-.nav-item.active { box-shadow: inset 0 0 0 1px rgba(117,214,165,.07); }
+.nav-item.active { box-shadow: inset 0 0 0 1px rgba(239,171,120,.08); }
 .topbar { min-height: 60px; border-color: var(--line); }
 .page { padding-top: 28px; }
 .page-heading { margin-bottom: 22px; }
@@ -63,7 +63,7 @@ body { background-color: var(--canvas); }
 .panel:hover { border-color: rgba(177,197,219,.15); }
 .safe-pill { color: var(--text-soft); }
 .safe-dot { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
-.primary-button { box-shadow: 0 1px 0 rgba(255,255,255,.2) inset, 0 8px 20px -15px rgba(117,214,165,.8); }
+.primary-button { box-shadow: 0 1px 0 rgba(255,255,255,.2) inset, 0 8px 20px -15px rgba(239,171,120,.75); }
 .primary-button:hover { filter: brightness(1.035); }
 .mobile-menu-button, .sidebar-backdrop { display: none; }
 .overview-grid { gap: 14px; }
@@ -159,7 +159,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .service-card .version-card-main > div { min-width: 0; overflow-wrap: anywhere; }
   .service-card .service-state { align-self: flex-start; margin-left: 0; min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
   .service-card-actions, .service-card-tools { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
-  .service-card-actions > button, .service-card-tools > button { width: 100%; min-width: 0; max-width: 100%; justify-content: center; white-space: normal; text-align: center; overflow-wrap: anywhere; }
+  .service-card-actions > button, .service-card-tools > button { width: 100%; min-width: 0; max-width: 100%; min-height: 44px; justify-content: center; white-space: normal; text-align: center; overflow-wrap: anywhere; }
   .runtime-service-panel .panel-top { align-items: flex-start; flex-direction: column; }
   .runtime-service-panel .panel-top > div { width: 100%; min-width: 0; }
   .runtime-service-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; min-width: 0; }
@@ -215,7 +215,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .catalog-search { margin: 0; gap: 10px; }
 .catalog-search .search-box { max-width: none; min-height: 44px; background: var(--canvas-soft); }
 .catalog-search .primary-button { min-width: 160px; min-height: 44px; }
-.search-box:focus-within { border-color: var(--accent-line); box-shadow: 0 0 0 3px rgba(117,214,165,.07); }
+.search-box:focus-within { border-color: var(--accent-line); box-shadow: 0 0 0 3px rgba(239,171,120,.08); }
 .catalog-suggestions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--text-muted); }
 .catalog-suggestions button { border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; color: var(--text-soft); }
 .catalog-suggestions button:hover { border-color: var(--accent-line); color: var(--accent); }

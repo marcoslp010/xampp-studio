@@ -3315,7 +3315,7 @@ async function handler(req, res) {
         'x-content-type-options': 'nosniff',
         // A interface não usa CDN, scripts inline nem imagens externas; o
         // único data: é o favicon. A CSP fecha a porta a injeções.
-        'content-security-policy': "default-src 'self'; img-src 'self' data:"
+        'content-security-policy': "default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
       });
       return res.end(req.method === 'HEAD' ? undefined : bytes);
     }

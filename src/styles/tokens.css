@@ -29,7 +29,6 @@
   /* traços */
   --line: rgba(207, 212, 225, .1);
   --line-strong: rgba(207, 212, 225, .2);
-  --line-lime: var(--accent-line);
 
   /* acento e estados */
   --accent: #efab78;

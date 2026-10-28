@@ -59,8 +59,50 @@ function navigate(page){
   if(page==='php'){state.dllVersionRoot=null;if(state.apiAvailable)loadDllRegistry()}
   if(page==='performance'&&state.apiAvailable)loadPerformance();
   if(page==='firewall'&&state.apiAvailable)loadFirewall();
-  window.scrollTo({top:0,behavior:'smooth'});
+  window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+  syncPageHash(page);
 }
+
+/* --------------------------------------------------------------------------
+   Rotas por hash — deep-links, botão Voltar e F5 preservam a tela atual.
+   Formatos: #/  ·  #/php  ·  #/versao/<root>[/<tab>]
+   -------------------------------------------------------------------------- */
+let syncHashLock=false;
+function pageHashFor(page){
+  if(page==='version'){
+    if(!state.dllVersionRoot)return null;
+    const tab=state.versionDetailTab;
+    return `#/versao/${encodeURIComponent(state.dllVersionRoot)}${tab&&tab!=='overview'?`/${encodeURIComponent(tab)}`:''}`;
+  }
+  return page==='overview'?'#/':`#/${encodeURIComponent(page)}`;
+}
+function syncPageHash(page){
+  const hash=pageHashFor(page);
+  if(!hash||location.hash===hash)return;
+  syncHashLock=true;
+  location.hash=hash;
+}
+function applyHashRoute(){
+  const raw=decodeURIComponent(location.hash.replace(/^#\/?/,''));
+  if(!raw){navigate('overview');return}
+  if(raw.startsWith('versao/')){
+    const rest=raw.slice('versao/'.length);
+    const slash=rest.indexOf('/');
+    const root=slash<0?rest:rest.slice(0,slash);
+    const tab=slash<0?'overview':rest.slice(slash+1);
+    if(!root){navigate('php');return}
+    state.dllVersionRoot=root;
+    state.versionDetailTab=['overview','dlls','settings'].includes(tab)?tab:'overview';
+    navigate('version');
+    return;
+  }
+  const known=['php','apache','mysql','database','services','performance','firewall','activity'];
+  navigate(known.includes(raw)?raw:'overview');
+}
+window.addEventListener('hashchange',()=>{
+  if(syncHashLock){syncHashLock=false;return}
+  applyHashRoute();
+});
 $$('.nav-item').forEach(button=>button.addEventListener('click',()=>navigate(button.dataset.page)));
 $$('[data-goto]').forEach(button=>button.addEventListener('click',()=>navigate(button.dataset.goto)));
 $$('.detail-tab').forEach(button=>button.addEventListener('click',()=>showVersionDetailTab(button.dataset.detailTab)));
@@ -99,14 +141,13 @@ function renderVersions(){
   const liveVersion=state.liveStatus?.phpCli?.version;
   list.innerHTML=state.versions.map(v=>{
     const current=Boolean(liveVersion&&v.version===liveVersion&&v.current);
-    return `<article class="version-card ${current?'current-version':''}" ${v.root?`data-runtime-root="${escapeHtml(v.root)}"`:''}><div class="version-card-main"><span class="php-tile">php</span><div><strong>PHP ${escapeHtml(v.version)}</strong><small>${escapeHtml(v.source||v.note||'Runtime disponível')}</small><code class="runtime-card-path">${escapeHtml(v.root||'')}</code></div></div><div class="version-badges"><span class="${current?'active-badge':''}">${current?'● Em uso':escapeHtml(v.channel||'Preparado')}</span><span>${escapeHtml(v.threadSafety||v.ts||'—')}</span><span>${escapeHtml(v.architecture||v.arch||'—')}</span></div><span class="version-footnote">${current?'PHP em uso neste ambiente':'DLLs e configurações por versão'}</span>${dllStatusHtml(v.dllCheck,v.root,v.version)}${apacheCompatibilityHtml(v)}${current?'<span class="result-chip done">ATUAL</span>':''}${v.root?`<div class="version-card-actions"><button class="outline-button small-button runtime-config" data-root="${escapeHtml(v.root)}" type="button">Configurar</button><button class="outline-button small-button runtime-dlls" data-root="${escapeHtml(v.root)}" type="button">⧉ Extensões</button></div>`:''}${(v.missingExtensions||[]).length?`<span class="extension-warning">${v.missingExtensions.length} extensão(ões) pendente(s)</span>`:''}</article>`;
+    return `<article class="version-card ${current?'current-version':''}" ${v.root?`data-runtime-root="${escapeHtml(v.root)}"`:''}><div class="version-card-main"><span class="php-tile">php</span><div><strong>PHP ${escapeHtml(v.version)}</strong><small>${escapeHtml(v.source||v.note||'Runtime disponível')}</small><code class="runtime-card-path">${escapeHtml(v.root||'')}</code></div></div><div class="version-badges"><span class="${current?'active-badge':''}">${current?'● Em uso':escapeHtml(v.channel||'Preparado')}</span><span>${escapeHtml(v.threadSafety||v.ts||'—')}</span><span>${escapeHtml(v.architecture||v.arch||'—')}</span></div><span class="version-footnote">${current?'PHP em uso neste ambiente':'DLLs e configurações por versão'}</span>${dllStatusHtml(v.dllCheck,v.root,v.version)}${apacheCompatibilityHtml(v)}${current?'<span class="result-chip done">ATUAL</span>':''}${v.root?`<div class="version-card-actions"><button class="outline-button small-button runtime-config" data-root="${escapeHtml(v.root)}" type="button">Configurar</button><button class="outline-button small-button runtime-dlls" data-root="${escapeHtml(v.root)}" type="button"><span aria-hidden="true">⧉</span> Extensões</button></div>`:''}${(v.missingExtensions||[]).length?`<span class="extension-warning">${v.missingExtensions.length} extensão(ões) pendente(s)</span>`:''}</article>`;
   }).join('');
   $$('.runtime-config').forEach(b=>b.addEventListener('click',()=>openVersionDetail(b.dataset.root)));
   $$('.runtime-dlls').forEach(b=>b.addEventListener('click',()=>openVersionDetail(b.dataset.root,'dlls')));
   $$('.dll-status[data-dll-root]').forEach(b=>b.addEventListener('click',()=>openVersionDetail(b.dataset.dllRoot,'dlls')));
   $$('.version-card[data-runtime-root]').forEach(card=>{
     card.addEventListener('click',event=>{if(event.target.closest('button,a,input,select'))return;openVersionDetail(card.dataset.runtimeRoot)});
-    card.addEventListener('keydown',event=>{if(event.target!==card)return;if(event.key==='Enter'||event.key===' '){event.preventDefault();openVersionDetail(card.dataset.runtimeRoot)}});
   });
 }
 function dllRuntimeList(){return Array.isArray(state.liveVersions)?state.liveVersions:[]}
@@ -127,6 +168,10 @@ function showVersionDetailTab(tab){
   state.versionDetailTab=tab;
   $$('.detail-tab').forEach(button=>{const active=button.dataset.detailTab===tab;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1});
   $$('.detail-panel').forEach(panel=>{panel.hidden=panel.dataset.detailPanel!==tab});
+  if($('#page-version').classList.contains('active-page')&&state.dllVersionRoot){
+    const hash=pageHashFor('version');
+    if(hash&&location.hash!==hash)history.replaceState(null,'',hash);
+  }
   const runtime=selectedDllRuntime();
   renderCatalogRuntimes();
   if(tab==='dlls'&&state.apiAvailable){if(state.dllRegistry)renderDllRegistry();else loadDllRegistry();loadExtensionDownloads()}
@@ -156,7 +201,7 @@ function renderVersionDetail(){
   activate.onclick=()=>{if(!current)showPhpActivation(runtime)};
   const compatibility=runtime.apacheCompatibility;
   const compatibilityCopy=compatibility?.compatible===false?compatibility.summary||'Foram encontradas dependências incompatíveis com o Apache atual.':check.required?'Nenhum conflito foi apontado nas dependências analisadas. O conjunto PHP e Apache será validado ao ativar.':'O registro de dependências está vazio. A ativação ainda precisa validar o conjunto PHP e Apache.';
-  $('#versionDetailOverview').innerHTML=`<article class="detail-card"><div class="eyebrow">INSTALAÇÃO LOCAL</div><h3>Sobre este PHP</h3><div class="detail-list"><div><span>Origem</span><strong>${escapeHtml(runtime.source||'Runtime local')}</strong></div><div><span>Modo de execução</span><strong>${escapeHtml(mode)}</strong></div><div><span>Arquitetura</span><strong>${escapeHtml(architecture)}</strong></div><div><span>Compilador</span><strong>${escapeHtml(runtime.compiler||'A consultar')}</strong></div></div><p class="panel-help">${current?'Este é o PHP selecionado para o ambiente.':'Você pode preparar extensões e configurações antes de ativar esta versão.'}</p><div class="compatibility-note ${compatibility?.compatible===false?'warning':''}"><strong>${compatibility?.compatible===false?'Compatibilidade requer atenção':'Validação ao ativar'}</strong>${escapeHtml(compatibilityCopy)}</div></article><article class="detail-card"><div class="eyebrow">GERENCIAR ESTA VERSÃO</div><h3>O que você quer fazer?</h3><div class="runtime-action-list"><button class="runtime-action open-detail-tab" data-detail-tab="dlls" type="button"><span><strong>Buscar e baixar DLLs</strong><small>Extensões compatíveis e downloads deste PHP</small></span><span aria-hidden="true">→</span></button><button class="runtime-action open-detail-tab" data-detail-tab="settings" type="button"><span><strong>Editar configurações</strong><small>Memória, uploads e variáveis do php.ini</small></span><span aria-hidden="true">→</span></button></div><div class="compatibility-note ${missing.length?'warning':''}"><strong>${missing.length?`${missing.length} dependência(s) ausente(s)`:check.required?`${check.present} dependência(s) localizada(s)`:'Nenhuma dependência registrada'}</strong>${missing.length?escapeHtml(missing.map(item=>item.dll).join(', ')):'Os downloads pertencem a esta instalação do PHP, mesmo que outra tenha o mesmo número de versão.'}</div></article>`;
+  $('#versionDetailOverview').innerHTML=`<article class="detail-card"><div class="eyebrow">INSTALAÇÃO LOCAL</div><h2>Sobre este PHP</h2><div class="detail-list"><div><span>Origem</span><strong>${escapeHtml(runtime.source||'Runtime local')}</strong></div><div><span>Modo de execução</span><strong>${escapeHtml(mode)}</strong></div><div><span>Arquitetura</span><strong>${escapeHtml(architecture)}</strong></div><div><span>Compilador</span><strong>${escapeHtml(runtime.compiler||'A consultar')}</strong></div></div><p class="panel-help">${current?'Este é o PHP selecionado para o ambiente.':'Você pode preparar extensões e configurações antes de ativar esta versão.'}</p><div class="compatibility-note ${compatibility?.compatible===false?'warning':''}"><strong>${compatibility?.compatible===false?'Compatibilidade requer atenção':'Validação ao ativar'}</strong>${escapeHtml(compatibilityCopy)}</div></article><article class="detail-card"><div class="eyebrow">GERENCIAR ESTA VERSÃO</div><h2>O que você quer fazer?</h2><div class="runtime-action-list"><button class="runtime-action open-detail-tab" data-detail-tab="dlls" type="button"><span><strong>Buscar e baixar DLLs</strong><small>Extensões compatíveis e downloads deste PHP</small></span><span aria-hidden="true">→</span></button><button class="runtime-action open-detail-tab" data-detail-tab="settings" type="button"><span><strong>Editar configurações</strong><small>Memória, uploads e variáveis do php.ini</small></span><span aria-hidden="true">→</span></button></div><div class="compatibility-note ${missing.length?'warning':''}"><strong>${missing.length?`${missing.length} dependência(s) ausente(s)`:check.required?`${check.present} dependência(s) localizada(s)`:'Nenhuma dependência registrada'}</strong>${missing.length?escapeHtml(missing.map(item=>item.dll).join(', ')):'Os downloads pertencem a esta instalação do PHP, mesmo que outra tenha o mesmo número de versão.'}</div></article>`;
   bindFindMissingDlls();
   $$('.open-detail-tab').forEach(button=>button.addEventListener('click',()=>{showVersionDetailTab(button.dataset.detailTab);$(`.detail-tab[data-detail-tab="${button.dataset.detailTab}"]`).focus({preventScroll:true})}));
 }
@@ -436,7 +481,7 @@ async function loadLiveStatus(){
     $('#integrityDescription').textContent=`Apache ${status.apache.running?'rodando':'parado'} · MySQL ${status.mysql.running?'rodando':'parado'}`;
     $('.ring-value').style.strokeDashoffset=String(264*(1-runningServices/2));
     $('.ring-value').style.stroke=runningServices===2?'var(--ok)':'var(--warn)';
-    const banner=$('#connectionBanner');if(banner){const bannerState=phpAvailable?'connected':'attention';if(banner.dataset.state!==bannerState)banner.hidden=false;banner.dataset.state=bannerState;banner.classList.add('connected-banner');banner.classList.toggle('attention-banner',!phpAvailable);banner.innerHTML=phpAvailable?'<span class="demo-icon">✓</span><span><strong>Agente conectado</strong> · Leitura local atualizada.</span><button id="bannerClose" aria-label="Fechar aviso">×</button>':'<span class="demo-icon">!</span><span><strong>PHP ativo indisponível</strong> · O agente está conectado. Abra uma versão instalada para revisar o ambiente.</span><button id="bannerClose" aria-label="Fechar aviso">×</button>';$('#bannerClose').onclick=()=>{banner.hidden=true}}
+    const banner=$('#connectionBanner');if(banner){const bannerState=phpAvailable?'connected':'attention';if(banner.dataset.state!==bannerState){banner.hidden=false;banner.dataset.state=bannerState;banner.classList.add('connected-banner');banner.classList.toggle('attention-banner',!phpAvailable);banner.innerHTML=phpAvailable?'<span class="demo-icon">✓</span><span><strong>Agente conectado</strong> · Leitura local atualizada.</span><button id="bannerClose" aria-label="Fechar aviso">×</button>':'<span class="demo-icon">!</span><span><strong>PHP ativo indisponível</strong> · O agente está conectado. Abra uma versão instalada para revisar o ambiente.</span><button id="bannerClose" aria-label="Fechar aviso">×</button>';$('#bannerClose').onclick=()=>{banner.hidden=true}}}
     const live=state.liveVersions.map(v=>({...v,channel:v.current&&phpAvailable?'Em uso':'Instalada',arch:v.architecture||status.phpCli?.architecture||'desconhecida',ts:v.threadSafety||status.phpCli?.threadSafety||'desconhecido',note:v.current&&phpAvailable?'PHP carregado pelo XAMPP':`Runtime em ${v.root}`,size:'local'}));
     state.versions=live;renderVersions();renderVersionDetail();if(state.dllRegistry)renderDllRegistry();
     const currentVersion=phpAvailable?status.phpCli.version:null;
@@ -468,7 +513,7 @@ async function loadLiveStatus(){
     $('#phpVersionCount').textContent='—';$('#apacheVersionCount').textContent='—';$('#mysqlVersionCount').textContent='—';
     renderVersions();renderVersionDetail();
     $('#mysqlConnection').innerHTML='<i></i> Sem conexão';$('#mysqlConnection').classList.add('disconnected');
-    const banner=$('#connectionBanner');if(banner){if(banner.dataset.state!=='offline')banner.hidden=false;banner.dataset.state='offline';banner.classList.remove('connected-banner','attention-banner');const fileMode=location.protocol==='file:';banner.innerHTML=`<span class="demo-icon">i</span><span><strong>${fileMode?'Página aberta como arquivo':'Agente local desconectado'}</strong> · ${fileMode?'Execute <code>start.ps1</code> e abra <code>http://127.0.0.1:43197</code>. O navegador bloqueia ações locais nesta visualização.':'Inicie com <code>start.ps1</code> para ler o XAMPP e habilitar as ações locais.'}</span><button id="bannerClose" aria-label="Fechar aviso">×</button>`;$('#bannerClose').onclick=()=>{banner.hidden=true}}
+    const banner=$('#connectionBanner');if(banner){if(banner.dataset.state!=='offline'){banner.hidden=false;banner.dataset.state='offline';banner.classList.remove('connected-banner','attention-banner');const fileMode=location.protocol==='file:';banner.innerHTML=`<span class="demo-icon">i</span><span><strong>${fileMode?'Página aberta como arquivo':'Agente local desconectado'}</strong> · ${fileMode?'Execute <code>start.ps1</code> e abra <code>http://127.0.0.1:43197</code>. O navegador bloqueia ações locais nesta visualização.':'Inicie com <code>start.ps1</code> para ler o XAMPP e habilitar as ações locais.'}</span><button id="bannerClose" aria-label="Fechar aviso">×</button>`;$('#bannerClose').onclick=()=>{banner.hidden=true}}}
   }
 }
 loadLiveStatus();
@@ -506,7 +551,7 @@ $('#refreshDllRegistry').addEventListener('click',async()=>{
   const button=$('#refreshDllRegistry');button.disabled=true;button.textContent='Lendo…';
   try{const result=await requestApi('/api/dlls/refresh',{method:'POST',body:'{}'});state.dllRegistry=result.registry;await loadLiveStatus();renderVersionDetail();renderDllRegistry();toast(`Registro atualizado: ${result.registry.dlls.length} DLL(s) em uso.`)}
   catch(error){toast(`Não foi possível atualizar o registro: ${error.message}`,true)}
-  finally{button.disabled=false;button.textContent='⟳ Atualizar'}
+  finally{button.disabled=false;button.innerHTML='<span aria-hidden="true">⟳</span> Atualizar'}
 });
 $('#dllStatusFilter').addEventListener('change',()=>renderDllRegistry());
 $('#dllSearch').addEventListener('input',()=>renderDllRegistry());
@@ -644,9 +689,9 @@ async function showSqlReview(){
 $('#backupButton').addEventListener('click',async()=>{if(!state.apiAvailable){toast('Inicie o XAMPP Studio com start.ps1 para criar uma cópia real dos arquivos de configuração.',true);return}try{const result=await requestApi('/api/backup',{method:'POST',body:'{}'});$('#lastBackupLabel').textContent=`${new Date(result.createdAt).toLocaleString('pt-BR')} · ${result.files.length} arquivos`;recordActivity('Backup de configuração criado',`${result.files.length} arquivo(s) · ${result.files.map(f=>f.name).join(', ')}`);toast(`Backup criado: ${result.files.map(f=>f.name).join(', ')}. Cópia salva na pasta backups.`)}catch(error){toast(`Não foi possível criar o backup: ${error.message}`,true)}});
 function renderActivity(){
   const table=$('#activityTable');if(!table)return;
-  const header='<div class="activity-row activity-head"><span>EVENTO</span><span>DETALHES</span><span>QUANDO</span><span>ESTADO</span></div>';
-  const rows=state.activity.map(item=>`<div class="activity-row"><span class="event-cell"><i class="event-icon check-event">·</i> ${escapeHtml(item.event)}</span><span class="detail-cell">${escapeHtml(item.details)}</span><span class="time-cell">${new Date(item.at).toLocaleString('pt-BR')}</span><span class="result-chip done">${escapeHtml(item.status)}</span></div>`).join('');
-  table.innerHTML=header+(rows||'<div class="activity-row"><span class="event-cell"><i class="event-icon check-event">·</i> Nenhuma ação registrada</span><span class="detail-cell">Backups, downloads preparados e reinícios aparecerão aqui.</span><span class="time-cell">—</span><span class="result-chip done">—</span></div>');
+  const header='<div class="activity-row activity-head" role="row"><span role="columnheader">EVENTO</span><span role="columnheader">DETALHES</span><span role="columnheader">QUANDO</span><span role="columnheader">ESTADO</span></div>';
+  const rows=state.activity.map(item=>`<div class="activity-row" role="row"><span class="event-cell" role="cell"><i class="event-icon check-event" aria-hidden="true">·</i> ${escapeHtml(item.event)}</span><span class="detail-cell" role="cell">${escapeHtml(item.details)}</span><span class="time-cell" role="cell">${new Date(item.at).toLocaleString('pt-BR')}</span><span class="result-chip done" role="cell">${escapeHtml(item.status)}</span></div>`).join('');
+  table.innerHTML=header+(rows||'<div class="activity-row" role="row"><span class="event-cell" role="cell"><i class="event-icon check-event" aria-hidden="true">·</i> Nenhuma ação registrada</span><span class="detail-cell" role="cell">Backups, downloads preparados e reinícios aparecerão aqui.</span><span class="time-cell" role="cell">—</span><span class="result-chip done" role="cell">—</span></div>');
 }
 function configureServiceActions(serviceControl){
   for(const component of ['apache','mysql']){
@@ -742,7 +787,7 @@ async function openNetstatPanel(){
   try{
     const result=await requestApi('/api/netstat');
     const rows=result.entries.map(netstatRow).join('');
-    $('#modalContent').innerHTML=`<div class="netstat-summary"><span class="netstat-chip">Portas em escuta <b>${result.counts.listening}</b></span><span class="netstat-chip">Conexões listadas <b>${result.counts.total}</b></span><span class="netstat-chip">Leitura <b>${new Date(result.generatedAt).toLocaleTimeString('pt-BR')}</b></span></div><div class="netstat-scroll"><table class="netstat-table"><thead><tr><th>PROTO</th><th>ENDEREÇO LOCAL</th><th>ESTADO</th><th>PID</th><th>PROCESSO</th><th>SERVIÇO</th><th>STUDIO</th></tr></thead><tbody>${rows||'<tr><td colspan="7">Nenhuma conexão listada.</td></tr>'}</tbody></table></div><div class="modal-note">O Studio apenas lê as conexões. Processos externos — como Docker ou WSL — nunca são encerrados automaticamente.</div><div class="modal-actions"><button class="outline-button" id="netstatRefresh">Atualizar</button><button class="primary-button" id="cancelAction">Fechar</button></div>`;
+    $('#modalContent').innerHTML=`<div class="netstat-summary"><span class="netstat-chip">Portas em escuta <b>${result.counts.listening}</b></span><span class="netstat-chip">Conexões listadas <b>${result.counts.total}</b></span><span class="netstat-chip">Leitura <b>${new Date(result.generatedAt).toLocaleTimeString('pt-BR')}</b></span></div><div class="netstat-scroll"><table class="netstat-table"><caption class="sr-only">Conexões de rede ativas lidas pelo agente local</caption><thead><tr><th scope="col">PROTO</th><th scope="col">ENDEREÇO LOCAL</th><th scope="col">ESTADO</th><th scope="col">PID</th><th scope="col">PROCESSO</th><th scope="col">SERVIÇO</th><th scope="col">STUDIO</th></tr></thead><tbody>${rows||'<tr><td colspan="7">Nenhuma conexão listada.</td></tr>'}</tbody></table></div><div class="modal-note">O Studio apenas lê as conexões. Processos externos — como Docker ou WSL — nunca são encerrados automaticamente.</div><div class="modal-actions"><button class="outline-button" id="netstatRefresh">Atualizar</button><button class="primary-button" id="cancelAction">Fechar</button></div>`;
     $('#netstatRefresh').onclick=()=>openNetstatPanel();
   }catch(error){
     $('#modalContent').innerHTML=`<div class="modal-note">${escapeHtml(error.message)}</div><div class="modal-actions"><button class="primary-button" id="cancelAction">Fechar</button></div>`;
@@ -769,7 +814,7 @@ $$('[data-service-stop]').forEach(button=>button.addEventListener('click',async(
   const component=button.dataset.serviceStop,label=component==='apache'?'Apache':'MySQL/MariaDB';
   const control=state.liveStatus?.serviceControl?.[component];
   if(!control?.running){toast(`${label} já está parado.`,true);return}
-  showModal('CONFIRMAR PARADA',`<h2>Parar ${label}?</h2><p class="modal-copy">O serviço <code>${escapeHtml(control.serviceName)}</code> será parado pelo Windows. As conexões locais podem cair e o site deixa de responder até o próximo início.</p><div class="modal-note">${component==='mysql'?'Parar o MySQL/MariaDB não apaga dados nem arquivos de banco.':'O Apache valida a configuração antes de cada novo início; parar apenas encerra o processo atual.'} Se o Windows pedir permissão administrativa, aceite o aviso UAC.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Cancelar</button><button class="primary-button" id="confirmServiceStop">Parar ${label}</button></div>`);
+  showModal('CONFIRMAR PARADA',`<h2>Parar ${label}?</h2><p class="modal-copy">O serviço <code>${escapeHtml(control.serviceName)}</code> será parado pelo Windows. As conexões locais podem cair e o site deixa de responder até o próximo início.</p><div class="modal-note">${component==='mysql'?'Parar o MySQL/MariaDB não apaga dados nem arquivos de banco.':'O Apache valida a configuração antes de cada novo início; parar apenas encerra o processo atual.'} Se o Windows pedir permissão administrativa, aceite o aviso UAC.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Cancelar</button><button class="primary-button danger-button" id="confirmServiceStop">Parar ${label}</button></div>`);
   $('#cancelAction').onclick=closeModal;
   $('#confirmServiceStop').onclick=async()=>{
     const confirm=$('#confirmServiceStop');confirm.disabled=true;confirm.textContent=state.liveStatus?.windowsAdmin?'Parando…':'Aguardando o Windows…';
@@ -855,13 +900,27 @@ function jobProgressHtml(job){
 }
 
 async function monitorJob(jobId,title='Operação em andamento'){
-  showModal('OPERAÇÃO ASSÍNCRONA',`<h2>${escapeHtml(title)}</h2><p class="modal-copy">O agente continua trabalhando depois que esta tela é aberta. O progresso é atualizado sem bloquear a interface.</p><div id="jobMonitor">${jobProgressHtml({status:'queued',progress:0,steps:[]})}</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Fechar</button></div>`);
+  showModal('OPERAÇÃO ASSÍNCRONA',`<h2>${escapeHtml(title)}</h2><p class="modal-copy">O agente continua trabalhando depois que esta tela é aberta. O progresso é atualizado sem bloquear a interface.</p><div id="jobMonitor" role="status" aria-live="polite">${jobProgressHtml({status:'queued',progress:0,steps:[]})}</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Fechar</button></div>`);
   $('#cancelAction').onclick=closeModal;
+  let failures=0;
   for(;;){
-    const result=await requestApi(`/api/jobs/${encodeURIComponent(jobId)}`);
-    const job=result.job;
+    let job;
+    try{
+      const result=await requestApi(`/api/jobs/${encodeURIComponent(jobId)}`,{timeout:15000});
+      job=result.job;
+      if(!job)throw new Error('A operação não foi encontrada no agente local.');
+      failures=0;
+    }catch(error){
+      if(error.status>=400&&error.status<500&&error.status!==429)throw new Error(`Não foi possível acompanhar a operação: ${error.message}`);
+      failures++;
+      const monitor=modal.open?$('#jobMonitor'):null;
+      if(monitor)monitor.innerHTML=`<div class="modal-note">${escapeHtml(error.message)} Tentando novamente…</div>`;
+      if(failures>=4)throw new Error(`Não foi possível acompanhar a operação: ${error.message}`);
+      await new Promise(resolve=>setTimeout(resolve,Math.min(3000,700*failures)));
+      continue;
+    }
     state.activeJobs.set(job.id,job);
-    const monitor=$('#jobMonitor');
+    const monitor=modal.open?$('#jobMonitor'):null;
     if(monitor)monitor.innerHTML=jobProgressHtml(job);
     if(job.status==='succeeded'||job.status==='failed')return job;
     await new Promise(resolve=>setTimeout(resolve,700));
@@ -952,7 +1011,7 @@ $('#mysqlReleaseList').addEventListener('click',event=>{
 $('#mysqlPreparedList').addEventListener('click',event=>{
   const button=event.target.closest('.activate-mysql');if(!button)return;
   const item=state.preparedMySql.find(runtime=>runtime.root===button.dataset.mysqlRoot);if(!item)return;
-  showModal('TROCA REVERSÍVEL DO BANCO',`<h2>Ativar ${escapeHtml(item.product==='mariadb'?'MariaDB':'MySQL')} ${escapeHtml(item.version)}?</h2><p class="modal-copy">O serviço MySQL/MariaDB passa a usar este executável e o diretório de dados próprio da versão. Se ainda não existir um serviço integrado, o Studio o registra automaticamente.</p><div class="file-summary"><span class="file-type-icon">DB</span><span><strong>${escapeHtml(item.root)}</strong><small>${escapeHtml(item.dataDirectory||'')}</small></span></div><div class="modal-note">O Windows pode exibir uma solicitação UAC para registrar o serviço. O comando anterior do serviço fica salvo para reversão. O banco atual não é apagado.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Cancelar</button><button class="primary-button" id="confirmMySqlSwitch">Validar e ativar</button></div>`);
+  showModal('TROCA REVERSÍVEL DO BANCO',`<h2>Ativar ${escapeHtml(item.product==='mariadb'?'MariaDB':'MySQL')} ${escapeHtml(item.version)}?</h2><p class="modal-copy">O serviço MySQL/MariaDB passa a usar este executável e o diretório de dados próprio da versão. Se ainda não existir um serviço integrado, o Studio o registra automaticamente.</p><div class="file-summary"><span class="file-type-icon">DB</span><span><strong>${escapeHtml(item.root)}</strong><small>${escapeHtml(item.dataDirectory||'')}</small></span></div><div class="modal-note">O Windows pode exibir uma solicitação UAC para registrar o serviço. O comando anterior do serviço fica salvo para reversão. O banco atual não é apagado.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Cancelar</button><button class="primary-button danger-button" id="confirmMySqlSwitch">Validar e ativar</button></div>`);
   $('#cancelAction').onclick=closeModal;
   $('#confirmMySqlSwitch').onclick=async()=>{const confirm=$('#confirmMySqlSwitch');confirm.disabled=true;confirm.textContent=state.liveStatus?.windowsAdmin?'Validando serviço…':'Aguardando UAC do Windows…';try{const result=await requestApi('/api/mysql/switch',{method:'POST',body:JSON.stringify({mysqlRoot:item.root})});closeModal();recordActivity('Runtime de banco ativado',`${result.product} ${result.version} · serviço ${result.serviceName}`,result.migrationRequired?'Migrar instância':result.restarted?'Concluído':'Configurado');await loadLiveStatus();await loadPreparedMySqlRuntimes();toast(result.migrationRequired?`${result.product==='mariadb'?'MariaDB':'MySQL'} ${result.version} foi registrado, mas uma instância antiga ainda ocupa a porta 3306. O Studio a preservou.`: `${result.product==='mariadb'?'MariaDB':'MySQL'} ${result.version} ativado${result.restarted?' e reiniciado':''}.`,Boolean(result.migrationRequired))}catch(error){confirm.disabled=false;confirm.textContent='Tentar novamente';$('#modalContent').insertAdjacentHTML('beforeend',`<div class="modal-note">${escapeHtml(error.message)}</div>`)}};
 });
@@ -1044,7 +1103,7 @@ $('#savePhpSettings').addEventListener('click',()=>{
 function renderFirewallLogs(filter=''){
   const query=filter.trim().toLowerCase();
   const entries=state.firewallLogs.filter(item=>`${item.ip} ${item.method} ${item.path} ${item.status} ${item.source} ${item.body} ${item.raw}`.toLowerCase().includes(query));
-  $('#firewallLogList').innerHTML=entries.map((item,index)=>`<article class="firewall-log-row"><div class="firewall-log-primary"><strong>${escapeHtml(item.ip)}</strong><span class="firewall-method">${escapeHtml(item.method)}</span><span class="firewall-path">${escapeHtml(item.path)}</span><span class="firewall-source">${escapeHtml(item.source)} · ${escapeHtml(item.status)}</span></div><div class="firewall-log-meta"><span>${escapeHtml(item.timestamp||'Horário não informado')}</span><span>${escapeHtml(item.body)}</span><div><button class="text-action view-raw-log" data-index="${index}">Ver raw <span>↗</span></button>${item.blocked?'<span class="result-chip warning-chip">BLOQUEADO</span>':`<button class="text-action block-log-ip" data-ip="${escapeHtml(item.ip)}">Bloquear IP <span>＋</span></button>`}</div></div></article>`).join('')||'<div class="empty-state"><strong>Nenhum registro encontrado</strong><p>Não há linhas nos logs disponíveis que correspondam a esta busca.</p></div>';
+  $('#firewallLogList').innerHTML=entries.map((item,index)=>`<article class="firewall-log-row"><div class="firewall-log-primary"><strong>${escapeHtml(item.ip)}</strong><span class="firewall-method">${escapeHtml(item.method)}</span><span class="firewall-path">${escapeHtml(item.path)}</span><span class="firewall-source">${escapeHtml(item.source)} · ${escapeHtml(item.status)}</span></div><div class="firewall-log-meta"><span>${escapeHtml(item.timestamp||'Horário não informado')}</span><span>${escapeHtml(item.body)}</span><div><button class="text-action view-raw-log" data-index="${index}">Ver raw <span aria-hidden="true">↗</span></button>${item.blocked?'<span class="result-chip warning-chip">BLOQUEADO</span>':`<button class="text-action block-log-ip" data-ip="${escapeHtml(item.ip)}">Bloquear IP <span aria-hidden="true">＋</span></button>`}</div></div></article>`).join('')||'<div class="empty-state"><strong>Nenhum registro encontrado</strong><p>Não há linhas nos logs disponíveis que correspondam a esta busca.</p></div>';
 }
 function renderBlockedIps(){
   $('#blockedIpList').innerHTML=state.blockedIps.map(item=>`<div class="blocked-ip-row"><span><strong>${escapeHtml(item.ip)}</strong><small>Bloqueado em ${escapeHtml(new Date(item.blockedAt).toLocaleString('pt-BR'))}</small></span><button class="outline-button small-button unblock-ip" data-ip="${escapeHtml(item.ip)}">Desbloquear</button></div>`).join('')||'<div class="catalog-context">Nenhum IP bloqueado pelo XAMPP Studio.</div>';
@@ -1074,7 +1133,7 @@ $('#firewallLogList').addEventListener('click',event=>{
   const block=event.target.closest('.block-log-ip');if(block)confirmBlockIp(block.dataset.ip);
 });
 function showBodyCaptureSetup(){
-  if(state.bodyCaptureActive){showModal('DESATIVAR CAPTURA FILTRADA',`<h2>Parar de registrar corpos?</h2><p class="modal-copy">A captura será removida do php.ini e o Apache será reiniciado pelo Studio se estiver sob seu controle.</p><div class="modal-note">Os registros já gravados em <code>logs/request-bodies.jsonl</code> permanecerão no projeto. A mudança vale para todos os sites PHP deste XAMPP.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Manter ativa</button><button class="primary-button" id="confirmBodyCapture">Desativar captura</button></div>`);}
+  if(state.bodyCaptureActive){showModal('DESATIVAR CAPTURA FILTRADA',`<h2>Parar de registrar corpos?</h2><p class="modal-copy">A captura será removida do php.ini e o Apache será reiniciado pelo Studio se estiver sob seu controle.</p><div class="modal-note">Os registros já gravados em <code>logs/request-bodies.jsonl</code> permanecerão no projeto. A mudança vale para todos os sites PHP deste XAMPP.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Manter ativa</button><button class="primary-button danger-button" id="confirmBodyCapture">Desativar captura</button></div>`);}
   else{showModal('ATIVAR CAPTURA FILTRADA',`<h2>Registrar formulários e JSON?</h2><p class="modal-copy">O Studio adiciona um filtro PHP que registra IP, método, caminho, status e corpo de requisições POST, PUT, PATCH e DELETE.</p><div class="checklist"><div><i>✓</i> Apenas JSON e formulário urlencoded até 16 KB.</div><div><i>✓</i> Campos com nomes de senha, token, segredo, chave ou sessão são ocultados.</div><div><i>✓</i> Campos longos são limitados; upload, query string e conteúdo binário são ignorados.</div></div><div class="modal-note">A captura vale para todos os sites PHP deste XAMPP. Os registros ficam em logs/request-bodies.jsonl dentro do projeto e continuam no disco após desativar. O Apache pode reiniciar para aplicar.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Cancelar</button><button class="primary-button" id="confirmBodyCapture">Ativar captura</button></div>`);}
   $('#confirmBodyCapture').onclick=async()=>{const button=$('#confirmBodyCapture');button.disabled=true;button.textContent=state.bodyCaptureActive?'Desativando…':'Validando e ativando…';try{const active=!state.bodyCaptureActive;const result=await requestApi('/api/firewall/body-capture',{method:'POST',body:JSON.stringify({active})});closeModal();recordActivity(active?'Captura filtrada ativada':'Captura filtrada desativada',result.apacheRestarted?'Apache reiniciado':'Requerida para novas requisições');await loadFirewall();toast(active?'Captura filtrada ativada.':'Captura filtrada desativada.')}catch(error){button.disabled=false;button.textContent=state.bodyCaptureActive?'Tentar novamente':'Tentar novamente';$('#modalContent').insertAdjacentHTML('beforeend',`<div class="modal-note">${escapeHtml(error.message)}</div>`)}};
 }
@@ -1110,10 +1169,12 @@ const shortcuts={
 document.addEventListener('keydown',event=>{
   if(event.ctrlKey||event.metaKey||event.altKey)return;
   const tag=document.activeElement?.tagName;
-  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||document.activeElement?.isContentEditable)return;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||tag==='BUTTON'||tag==='A'||document.activeElement?.isContentEditable)return;
   if(modal.open)return;
   const action=shortcuts[event.key.toLowerCase()];
   if(!action)return;
   event.preventDefault();
   action();
 });
+
+applyHashRoute();

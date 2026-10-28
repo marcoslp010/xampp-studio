@@ -77,7 +77,7 @@
 }
 .modal-field input:focus,
 .modal-field select:focus,
-.modal-field textarea:focus { border-color: var(--line-lime); }
+.modal-field textarea:focus { border-color: var(--accent-line); }
 
 .checklist { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
 .checklist > div { display: flex; gap: 11px; align-items: flex-start; color: var(--text-soft); font-size: 12.5px; }

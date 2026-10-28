@@ -18,7 +18,7 @@
   letter-spacing: -0.045em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(180deg, #ffffff, #b9c3bb);
+  background: linear-gradient(180deg, #ffffff, #c2beb6);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -47,7 +47,7 @@
   font-weight: 560;
   white-space: nowrap;
 }
-.stable-badge { border-color: var(--line-lime); background: var(--accent-soft); color: var(--accent); }
+.stable-badge { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
 .stable-badge span { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 
 .php-details {
@@ -86,9 +86,9 @@
 .visual-node.current {
   background: var(--accent);
   border-color: transparent;
-  box-shadow: 0 0 0 4px var(--accent-soft), 0 0 14px rgba(200, 241, 105, 0.55);
+  box-shadow: 0 0 0 4px var(--accent-soft), 0 0 14px rgba(239, 171, 120, 0.5);
 }
-.visual-track { flex: 1; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--line-strong), rgba(200, 241, 105, 0.45)); }
+.visual-track { flex: 1; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--line-strong), rgba(239, 171, 120, 0.45)); }
 .visual-labels {
   display: flex;
   justify-content: space-between;
@@ -130,7 +130,7 @@
   stroke-dasharray: 264;
   stroke-dashoffset: 264;
   transition: stroke-dashoffset var(--slow) var(--spring);
-  filter: drop-shadow(0 0 6px rgba(200, 241, 105, 0.45));
+  filter: drop-shadow(0 0 6px rgba(239, 171, 120, 0.4));
 }
 .score-ring b { font-size: 19px; font-weight: 640; font-variant-numeric: tabular-nums; }
 .integrity-score > span:last-child { display: flex; flex-direction: column; gap: 3px; }

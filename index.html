@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b0e12" />
+    <meta name="theme-color" content="#101113" />
     <title>XAMPP Studio — seu ambiente, sob controle</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23101311'/%3E%3Cpath d='M18 18l28 28M46 18L18 46' stroke='%23c8f169' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23101113'/%3E%3Cpath d='M18 18l28 28M46 18L18 46' stroke='%23efab78' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -13,7 +13,7 @@
     <a class="skip-link" href="#mainContent">Pular para o conteúdo</a>
     <div class="app-shell">
       <aside class="sidebar" id="appSidebar" aria-label="Navegação do XAMPP Studio">
-        <a class="brand" href="#inicio" aria-label="XAMPP Studio, início">
+        <a class="brand" href="#/" aria-label="XAMPP Studio, início">
           <span class="brand-mark"><span></span><span></span><span></span></span>
           <span class="brand-name">xampp<span>studio</span></span>
           <span class="brand-tag">BETA</span>
@@ -23,7 +23,7 @@
         <button class="workspace-switch" id="workspaceButton">
           <span class="workspace-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-terminal"/></svg></span>
           <span class="workspace-copy"><strong>Meu XAMPP</strong><small>C:\xampp</small></span>
-          <span class="chevron">⌄</span>
+          <span class="chevron" aria-hidden="true">⌄</span>
         </button>
 
         <nav class="main-nav" aria-label="Navegação principal">
@@ -41,15 +41,15 @@
         </nav>
 
         <div class="sidebar-bottom">
-          <div class="upgrade-card"><div class="upgrade-spark"><svg class="ui-icon" aria-hidden="true"><use href="#icon-code"/></svg></div><strong>Cada PHP, seu ambiente.</strong><p>Gerencie extensões e configurações dentro de cada versão.</p><button id="learnButton">Como funciona <span>↗</span></button></div>
-          <button class="user-profile" id="settingsButton"><span class="avatar"><svg class="ui-icon" aria-hidden="true"><use href="#icon-sliders"/></svg></span><span><strong>Meu ambiente</strong><small>Configurações</small></span><span class="more">···</span></button>
+          <div class="upgrade-card"><div class="upgrade-spark"><svg class="ui-icon" aria-hidden="true"><use href="#icon-code"/></svg></div><strong>Cada PHP, seu ambiente.</strong><p>Gerencie extensões e configurações dentro de cada versão.</p><button id="learnButton">Como funciona <span aria-hidden="true">↗</span></button></div>
+          <button class="user-profile" id="settingsButton"><span class="avatar"><svg class="ui-icon" aria-hidden="true"><use href="#icon-sliders"/></svg></span><span><strong>Meu ambiente</strong><small>Configurações</small></span><span class="more" aria-hidden="true">···</span></button>
         </div>
       </aside>
       <button class="sidebar-backdrop" id="sidebarBackdrop" type="button" aria-label="Fechar navegação" tabindex="-1"></button>
 
       <main class="main-content" id="mainContent" tabindex="-1">
         <header class="topbar">
-          <button class="mobile-menu-button inline-grid place-items-center rounded-lg border border-slate-700/70 bg-slate-900/80 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 active:scale-95" id="mobileMenuButton" type="button" aria-label="Abrir navegação" aria-controls="appSidebar" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-menu"/></svg></button>
+          <button class="mobile-menu-button" id="mobileMenuButton" type="button" aria-label="Abrir navegação" aria-controls="appSidebar" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-menu"/></svg></button>
           <div class="breadcrumb"><span>Meu XAMPP</span><i>/</i><strong id="breadcrumbCurrent">Visão geral</strong></div>
           <div class="top-actions">
             <button class="command-trigger" id="openCommandSearch" type="button" aria-label="Buscar página" aria-keyshortcuts="Control+k Meta+k"><svg class="ui-icon" aria-hidden="true"><use href="#icon-search"/></svg><span>Ir para…</span><kbd>Ctrl K</kbd></button>
@@ -87,9 +87,9 @@
             </article>
 
             <article class="panel service-panel" data-dashboard-module="services">
-              <div class="panel-top"><div class="panel-title"><span>ESTADO DOS SERVIÇOS</span></div><span class="live-label" id="liveStatusLabel"><span></span> AGUARDANDO AGENTE</span></div>
+              <div class="panel-top"><div class="panel-title"><span>ESTADO DOS SERVIÇOS</span></div><span class="live-label" id="liveStatusLabel" aria-live="polite"><span></span> AGUARDANDO AGENTE</span></div>
               <div class="integrity-score"><span class="score-ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-base" cx="50" cy="50" r="42"></circle><circle class="ring-value" cx="50" cy="50" r="42"></circle></svg><b id="integrityScore">—</b></span><span><strong id="integrityTitle">Aguardando leitura</strong><small id="integrityDescription">Conecte o agente local.</small></span></div>
-              <div class="service-list"><div><span class="service-name"><i class="service-square apache">A</i> Apache</span><span class="service-state" id="apacheState"><i></i> Verificando</span><span class="port">:80</span></div><div><span class="service-name"><i class="service-square mysql">M</i> MySQL</span><span class="service-state" id="mysqlState"><i></i> Verificando</span><span class="port">:3306</span></div></div>
+              <div class="service-list"><div><span class="service-name"><i class="service-square apache">A</i> Apache</span><span class="service-state" id="apacheState" aria-live="polite"><i></i> Verificando</span><span class="port">:80</span></div><div><span class="service-name"><i class="service-square mysql">M</i> MySQL</span><span class="service-state" id="mysqlState" aria-live="polite"><i></i> Verificando</span><span class="port">:3306</span></div></div>
             </article>
 
             <article class="panel extensions-panel" data-dashboard-module="extensions">
@@ -102,16 +102,16 @@
             <article class="panel database-panel" data-dashboard-module="database">
               <div class="panel-top"><div class="panel-title"><svg class="ui-icon" aria-hidden="true"><use href="#icon-database"/></svg><span>REVISÃO SQL</span></div><span class="quiet-status">Somente análise</span></div>
               <div class="database-content"><div class="database-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-database"/></svg></div><div><strong>Revise antes de importar.</strong><p>Analise seu arquivo SQL e confira as operações previstas.</p></div></div>
-              <button class="outline-button" id="importSqlButton"><span>＋</span> Revisar arquivo .sql</button>
+              <button class="outline-button" id="importSqlButton"><span aria-hidden="true">＋</span> Revisar arquivo .sql</button>
             </article>
           </div>
 
-          <section class="activity-section"><div class="section-heading"><div><div class="eyebrow">REGISTRO DO AMBIENTE</div><h2>Atividade recente</h2></div><button class="text-action" data-goto="activity">Ver histórico completo <span>→</span></button></div><div class="activity-table"><div class="activity-row activity-head"><span>EVENTO</span><span>DETALHES</span><span>QUANDO</span><span>ESTADO</span></div><div class="activity-row"><span class="event-cell"><i class="event-icon check-event">·</i> Nenhuma ação registrada</span><span class="detail-cell">Os backups aparecerão aqui após serem criados.</span><span class="time-cell">—</span><span class="result-chip done">—</span></div></div></section>
+          <section class="activity-section"><div class="section-heading"><div><div class="eyebrow">REGISTRO DO AMBIENTE</div><h2>Atividade recente</h2></div><button class="text-action" data-goto="activity">Ver histórico completo <span>→</span></button></div><div class="activity-table" role="table" aria-label="Atividade recente"><div class="activity-row activity-head" role="row"><span role="columnheader">EVENTO</span><span role="columnheader">DETALHES</span><span role="columnheader">QUANDO</span><span role="columnheader">ESTADO</span></div><div class="activity-row" role="row"><span class="event-cell" role="cell"><i class="event-icon check-event" aria-hidden="true">·</i> Nenhuma ação registrada</span><span class="detail-cell" role="cell">Os backups aparecerão aqui após serem criados.</span><span class="time-cell" role="cell">—</span><span class="result-chip done" role="cell">—</span></div></div></section>
           <footer class="page-footer"><span>XAMPP Studio · Gerenciamento local</span><span>v0.1.0 <i>·</i> Configurações com backup</span></footer>
         </section>
 
         <section class="page" id="page-php">
-          <div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> RUNTIMES ISOLADOS</div><h1>Versões do <em>PHP.</em></h1><p class="heading-copy">Baixe builds oficiais, abra a configuração de cada versão e troque com validação.</p></div><button class="primary-button" id="addVersion"><span>＋</span> Adicionar versão</button></div>
+          <div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> RUNTIMES ISOLADOS</div><h1>Versões do <em>PHP.</em></h1><p class="heading-copy">Baixe builds oficiais, abra a configuração de cada versão e troque com validação.</p></div><button class="primary-button" id="addVersion"><span aria-hidden="true">＋</span> Adicionar versão</button></div>
           <div class="notice-card"><span class="notice-symbol">↻</span><div><strong>Escolha uma versão para trabalhar.</strong><p>Abra uma versão para buscar DLLs e editar o php.ini. Ativar o PHP é uma ação separada, com backup e validação.</p></div><span class="notice-chip">BACKUP + VALIDAÇÃO</span></div>
           <div class="version-list" id="versionList"></div>
           <div class="catalog-context php-version-hint">Selecione uma versão para configurar DLLs, variáveis e ativação.</div>
@@ -200,13 +200,13 @@
           <div class="version-list service-cards">
             <article class="version-card service-card w-full min-w-0">
               <div class="version-card-main"><i class="service-square apache">A</i><div><strong>Apache</strong><small>Servidor web · porta <span id="apachePortLabel">80</span></small></div></div>
-              <span class="service-state"><i></i> Aguardando leitura</span>
+              <span class="service-state" aria-live="polite"><i></i> Aguardando leitura</span>
               <div class="service-card-actions w-full min-w-0"><button class="outline-button small-button service-action" data-service="apache" disabled>Aguardando leitura</button><button class="outline-button small-button service-stop" data-service-stop="apache" disabled>Parar</button><button class="outline-button small-button service-repair" data-service-repair="apache" type="button">Reparar comando</button><button class="outline-button small-button service-port" id="changeApachePort" type="button">Mudar porta</button></div>
               <div class="service-card-tools w-full min-w-0"><button class="service-tool" data-xampp-action="config" data-component="apache" type="button">Config</button><button class="service-tool" data-xampp-action="logs" data-component="apache" type="button">Logs</button><button class="service-tool" data-xampp-action="shell" data-component="apache" type="button">Shell</button><button class="service-tool" data-xampp-action="admin" data-component="apache" type="button">Admin</button><button class="service-tool" id="openSiteButton" type="button">Abrir site</button></div>
             </article>
             <article class="version-card service-card w-full min-w-0">
               <div class="version-card-main"><i class="service-square mysql">M</i><div><strong>MySQL/MariaDB</strong><small>Banco de dados · porta 3306</small></div></div>
-              <span class="service-state"><i></i> Aguardando leitura</span>
+              <span class="service-state" aria-live="polite"><i></i> Aguardando leitura</span>
               <div class="service-card-actions w-full min-w-0"><button class="outline-button small-button service-action" data-service="mysql" disabled>Aguardando leitura</button><button class="outline-button small-button service-stop" data-service-stop="mysql" disabled>Parar</button><button class="outline-button small-button service-repair" data-service-repair="mysql" type="button">Reparar comando</button></div>
               <div class="service-card-tools w-full min-w-0"><button class="service-tool" data-xampp-action="config" data-component="mysql" type="button">Config</button><button class="service-tool" data-xampp-action="logs" data-component="mysql" type="button">Logs</button><button class="service-tool" data-xampp-action="shell" data-component="mysql" type="button">Shell</button><button class="service-tool" data-xampp-action="admin" data-component="mysql" type="button">Admin</button></div>
             </article>
@@ -232,7 +232,7 @@
 
         <section class="page" id="page-firewall"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> PROTEÇÃO DO AMBIENTE</div><h1>Firewall <em>local.</em></h1><p class="heading-copy">Consulte requisições registradas, bloqueie endereços e revise o acesso via Cloudflare.</p></div><div class="firewall-heading-actions"><button class="outline-button" id="refreshFirewall">Atualizar registros</button><button class="primary-button" id="blockIpButton">Bloquear IP</button></div></div><div class="notice-card" id="firewallNotice"><span class="notice-symbol">i</span><div><strong>Os registros dependem da configuração atual do Apache e do Windows.</strong><p>O log do Apache mostra IP, método e caminho. A captura do corpo é opcional e filtra dados sensíveis; “Raw” mostra a linha original filtrada.</p></div></div><article class="panel cloudflare-panel"><div class="panel-top"><div><div class="panel-title">ACESSO AO SITE POR CLOUDFLARE</div><p class="panel-help">Permite conexões nas portas 80 e 443 apenas das faixas oficiais da Cloudflare, após revisar conflitos existentes.</p></div><button class="outline-button" id="cloudflareAction">Verificar configuração</button></div><div class="cloudflare-state" id="cloudflareState">Ainda não verificado</div></article><article class="panel body-capture-panel"><div class="panel-top"><div><div class="panel-title">CAPTURA FILTRADA DO CORPO · PHP</div><p class="panel-help">Opcional. Registra JSON e formulários até 16 KB, oculta campos de senha e token, e ignora uploads. A captura se aplica aos sites PHP deste XAMPP.</p></div><button class="outline-button" id="bodyCaptureAction">Verificar captura</button></div><div class="cloudflare-state" id="bodyCaptureState">Desativada</div></article><div class="section-heading firewall-section-heading"><div><div class="eyebrow">TRÁFEGO RECENTE</div><h2>Registros de acesso</h2></div><label class="search-box"><span>⌕</span><input aria-label="Filtrar registros de acesso" id="firewallSearch" type="search" placeholder="Buscar IP, método ou caminho" autocomplete="off"></label></div><div class="firewall-log-list" id="firewallLogList"><div class="empty-state"><strong>Conecte o agente local</strong><p>O XAMPP Studio mostrará os registros já existentes no Apache e no Firewall do Windows.</p></div></div><div class="section-heading firewall-section-heading blocked-heading"><div><div class="eyebrow">REGRAS CRIADAS PELO STUDIO</div><h2>IPs bloqueados</h2></div></div><div class="blocked-ip-list" id="blockedIpList"><div class="catalog-context">Nenhum IP bloqueado por este Studio.</div></div></section>
 
-        <section class="page" id="page-activity"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> HISTÓRICO LOCAL</div><h1>Atividade <em>recente.</em></h1><p class="heading-copy">O histórico fica neste navegador e pode ser exportado.</p></div><button class="outline-button" id="exportLog">↓ Exportar registro</button></div><div class="activity-table full-activity" id="activityTable"><div class="activity-row activity-head"><span>EVENTO</span><span>DETALHES</span><span>QUANDO</span><span>ESTADO</span></div><div class="activity-row"><span class="event-cell"><i class="event-icon check-event">·</i> Nenhuma ação registrada</span><span class="detail-cell">Backups, downloads preparados e reinícios aparecerão aqui.</span><span class="time-cell">—</span><span class="result-chip done">—</span></div></div></section>
+        <section class="page" id="page-activity"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> HISTÓRICO LOCAL</div><h1>Atividade <em>recente.</em></h1><p class="heading-copy">O histórico fica neste navegador e pode ser exportado.</p></div><button class="outline-button" id="exportLog">↓ Exportar registro</button></div><div class="activity-table full-activity" id="activityTable" role="table" aria-label="Histórico de atividade"><div class="activity-row activity-head" role="row"><span role="columnheader">EVENTO</span><span role="columnheader">DETALHES</span><span role="columnheader">QUANDO</span><span role="columnheader">ESTADO</span></div><div class="activity-row" role="row"><span class="event-cell" role="cell"><i class="event-icon check-event" aria-hidden="true">·</i> Nenhuma ação registrada</span><span class="detail-cell" role="cell">Backups, downloads preparados e reinícios aparecerão aqui.</span><span class="time-cell" role="cell">—</span><span class="result-chip done" role="cell">—</span></div></div></section>
       </main>
     </div>
 
