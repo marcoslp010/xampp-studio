@@ -183,6 +183,10 @@ function showVersionDetailTab(tab){
 function renderVersionDetail(){
   const runtime=selectedDllRuntime();
   const activate=$('#activateSelectedVersion');
+  const repair=$('#downloadPendingExtensions');
+  repair.hidden=!runtime?.canPrepareExtensions || !(runtime.dllCheck?.missing?.length || runtime.missingExtensions?.length);
+  repair.disabled=!state.apiAvailable;
+  repair.onclick=()=>preparePendingExtensions(runtime);
   if(!runtime){
     $('#versionDetailTitle').textContent='—';$('#versionDetailSubtitle').textContent='Selecione uma versão na lista para configurar.';$('#versionDetailState').textContent='SEM VERSÃO';$('#versionDetailSummary').innerHTML='<span>Nenhuma versão selecionada.</span>';$('#versionDetailOverview').innerHTML='<div class="empty-state"><strong>Nenhuma versão selecionada</strong><p>Volte para a lista de versões do PHP.</p></div>';activate.disabled=true;return;
   }
@@ -218,12 +222,15 @@ async function showPhpActivation(runtime){
   const missing=runtime.missingExtensions||[];
   const dllCheck=runtime.dllCheck||{compatible:true,missing:[],present:0,required:0};
   const dllMissing=dllCheck.missing||[];
-  const dllNotice=dllCheck.compatible?`<div class="modal-note"><strong>DLLs registradas:</strong> ${dllCheck.present}/${dllCheck.required} presentes neste runtime. A troca pode prosseguir.</div>`:`<div class="modal-note danger-note"><strong>Troca bloqueada: ${dllMissing.length} DLL(s) registrada(s) não existem neste runtime.</strong><ul>${dllMissing.map(item=>`<li>${escapeHtml(item.dll)} <small>(${escapeHtml((item.sources||['php.ini']).join(', '))})</small></li>`).join('')}</ul>O PHP atual continuará ativo. Instale essas DLLs no runtime ou ajuste o registro antes de tentar novamente.<button type="button" class="text-action inspect-missing-dlls" data-dll-root="${escapeHtml(runtime.root)}">Ver DLLs ausentes nesta versão <span>→</span></button></div>`;
+  const repairButton = runtime.canPrepareExtensions ? '<button type="button" class="primary-button" id="repairActivationExtensions">Baixar pendentes</button>' : '';
+  const dllNotice=dllCheck.compatible?`<div class="modal-note"><strong>DLLs registradas:</strong> ${dllCheck.present}/${dllCheck.required} presentes neste runtime. A troca pode prosseguir.</div>`:`<div class="modal-note danger-note"><strong>Troca bloqueada: ${dllMissing.length} DLL(s) registrada(s) não existem neste runtime.</strong><ul>${dllMissing.map(item=>`<li>${escapeHtml(item.dll)} <small>(${escapeHtml((item.sources||['php.ini']).join(', '))})</small></li>`).join('')}</ul>${repairButton}<p>Confira as dependências desta versão antes de ativar.</p><button type="button" class="text-action inspect-missing-dlls" data-dll-root="${escapeHtml(runtime.root)}">Ver DLLs ausentes nesta versão <span>→</span></button></div>`;
   const apacheOptions=state.preparedApache.map(item=>`<option value="${escapeHtml(item.root)}">Apache ${escapeHtml(item.version)} · ${escapeHtml(item.build)} (${escapeHtml(item.compiler)})</option>`).join('');
   const apacheCompatibility=runtime.apacheCompatibility||null;
   const apacheNotice=apacheCompatibility&&!apacheCompatibility.compatible?`<div class="modal-note danger-note"><strong>Esta versão não roda no Apache atual.</strong><p>${escapeHtml(apacheCompatibility.summary||'As extensões exigem símbolos que a biblioteca do Apache não oferece.')}</p><p>Escolha abaixo um runtime Apache compatível — o Studio baixa as versões oficiais do Apache Lounge na aba <strong>Apache</strong> — ou volte para uma versão de PHP compatível. Manter o Apache atual faz a troca ser recusada antes de qualquer alteração.</p></div>`:'';
-  showModal('TROCA VALIDADA DO AMBIENTE',`<h2>Usar PHP ${escapeHtml(runtime.version)}?</h2><p class="modal-copy">O Studio vai atualizar as referências do PHP e testar o Apache. Se o build atual for incompatível, a troca será revertida. Quando necessário, escolha junto um runtime Apache já baixado.</p><div class="file-summary"><span class="file-type-icon">PHP</span><span><strong>${escapeHtml(runtime.root)}</strong><small>${escapeHtml(runtime.threadSafety||'Thread Safe')} · ${escapeHtml(runtime.architecture||'arquitetura detectada')} · ${escapeHtml(runtime.compiler||'compilador não informado')}</small></span></div><label class="modal-field"><span>Apache neste ambiente</span><select id="switchApache"><option value="">Manter o Apache atual e validar</option><option value="${escapeHtml(`${state.liveStatus?.xamppRoot||'C:\\xampp'}\\apache`)}">Voltar ao Apache incluído no XAMPP</option>${apacheOptions}</select></label>${apacheNotice}${dllNotice}${missing.length?`<div class="modal-note"><strong>Extensões sem build compatível no pacote:</strong> ${missing.map(item=>escapeHtml(item.name)).join(', ')}. Elas ficarão desativadas nesta versão e poderão ser instaladas depois com DLL compatível.</div>`:'<div class="modal-note">As extensões ativas no PHP atual serão migradas quando houver DLL no pacote oficial selecionado.</div>'}<div class="modal-actions"><button class="outline-button" id="cancelAction">Cancelar</button><button class="primary-button" id="confirmEnvironmentSwitch" ${dllCheck.compatible?'':'disabled'}>${dllCheck.compatible?'Validar e usar PHP':'Troca bloqueada'}</button></div>`);
+  showModal('TROCA VALIDADA DO AMBIENTE',`<h2>Usar PHP ${escapeHtml(runtime.version)}?</h2><p class="modal-copy">O Studio vai atualizar as referências do PHP e testar o Apache. Se o build atual for incompatível, a troca será revertida. Quando necessário, escolha junto um runtime Apache já baixado.</p><div class="file-summary"><span class="file-type-icon">PHP</span><span><strong>${escapeHtml(runtime.root)}</strong><small>${escapeHtml(runtime.threadSafety||'Thread Safe')} · ${escapeHtml(runtime.architecture||'arquitetura detectada')} · ${escapeHtml(runtime.compiler||'compilador não informado')}</small></span></div><label class="modal-field"><span>Apache neste ambiente</span><select id="switchApache"><option value="">Manter o Apache atual e validar</option><option value="${escapeHtml(`${state.liveStatus?.xamppRoot||'C:\\xampp'}\\apache`)}">Voltar ao Apache incluído no XAMPP</option>${apacheOptions}</select></label>${apacheNotice}${dllNotice}${missing.length?`<div class="modal-note"><strong>Extensões que precisam de preparação:</strong> ${missing.map(item=>escapeHtml(item.name)).join(', ')}. Confira as pendências na aba DLLs e extensões.</div>`:'<div class="modal-note">O Studio testará o carregamento do PHP e a configuração do Apache antes de concluir a troca.</div>'}<div class="modal-actions"><button class="outline-button" id="cancelAction">Cancelar</button><button class="primary-button" id="confirmEnvironmentSwitch" ${dllCheck.compatible?'':'disabled'}>${dllCheck.compatible?'Validar e usar PHP':'Troca bloqueada'}</button></div>`);
   $('#cancelAction').onclick=closeModal;
+  const repair=$('#repairActivationExtensions');
+  if(repair)repair.onclick=()=>preparePendingExtensions(runtime);
   $('#confirmEnvironmentSwitch').onclick=async()=>{
     if(!dllCheck.compatible){toast(`Troca bloqueada: faltam ${dllMissing.length} DLL(s) no runtime de destino.`,true);return}
     const button=$('#confirmEnvironmentSwitch');button.disabled=true;button.textContent='Validando configuração…';
@@ -241,8 +248,29 @@ async function showPhpActivation(runtime){
   };
 }
 $('#quickSwitch').addEventListener('click',()=>navigate('php'));
+
+function showExtensionPreparationResult(result){
+  const {installed,pending}=result.extensionPreparation;
+  const integrated=result.dllCheck.details.filter(item=>item.builtIn);
+  const list=items=>`<ul>${items.map(item=>`<li>${item}</li>`).join('')}</ul>`;
+  const installedHtml=installed.length ? `<p>Instaladas e validadas</p>${list(installed.map(item=>escapeHtml(item.name)+' '+escapeHtml(item.version)))}` : '';
+  const integratedHtml=integrated.length ? `<p>Integradas ao PHP</p>${list(integrated.map(item=>escapeHtml(item.name)))}` : '';
+  const pendingHtml=pending.length ? `<div class="modal-note danger-note"><strong>Pendentes</strong>${list(pending.map(item=>`<strong>${escapeHtml(item.dll)}</strong> · ${escapeHtml(item.reason)}`))}</div>` : '<p>Todos os requisitos registrados foram atendidos.</p>';
+  showModal('PREPARAÇÃO DE EXTENSÕES',`<h2>PHP ${escapeHtml(result.version)}</h2>${installedHtml}${integratedHtml}${pendingHtml}<div class="modal-actions"><button type="button" class="outline-button" id="cancelAction">Fechar</button><button type="button" class="primary-button" id="viewPreparedExtensions">Ver versão</button></div>`);
+  $('#cancelAction').onclick=closeModal;
+  $('#viewPreparedExtensions').onclick=()=>{closeModal();openVersionDetail(result.root,'dlls')};
+}
+
+async function preparePendingExtensions(runtime){
+  if(!runtime?.canPrepareExtensions)return;
+  try{
+    const result=await startAsyncJob('/api/php/extensions/prepare-async',{phpRoot:runtime.root},`Configurando extensões do PHP ${runtime.version}`,{closeOnSuccess:true});
+    await loadLiveStatus();
+    showExtensionPreparationResult(result);
+  }catch(error){toast(error.message,true)}
+}
 $('#addVersion').addEventListener('click',async()=>{
-  showModal('BUILDS OFICIAIS PARA WINDOWS',`<h2>Adicionar versão do PHP</h2><p class="modal-copy">Lista apenas versões acima da atual, com a mesma arquitetura e modo TS/NTS do seu PHP.</p><div class="modal-note">O ZIP oficial será validado por SHA-256. O Studio prepara o runtime, migra as extensões que existirem e mostra o que ficou pendente antes de oferecer a troca.</div><div id="phpReleaseResults" class="release-list"><div class="catalog-loading">Consultando o catálogo oficial…</div></div><div class="modal-actions"><button class="outline-button" id="cancelAction">Fechar</button></div>`);
+  showModal('BUILDS OFICIAIS PARA WINDOWS',`<h2>Adicionar versão do PHP</h2><p class="modal-copy">Lista apenas versões acima da atual, com a mesma arquitetura e modo TS/NTS do seu PHP.</p><div class="modal-note">O ZIP oficial será validado por SHA-256. O Studio configura a nova versão e busca no PECL as extensões em uso que faltarem no pacote do PHP.</div><div id="phpReleaseResults" class="release-list"><div class="catalog-loading">Consultando o catálogo oficial…</div></div><div class="modal-actions"><button class="outline-button" id="cancelAction">Fechar</button></div>`);
   $('#cancelAction').onclick=closeModal;
   const list=$('#phpReleaseResults');
   if(!state.apiAvailable){list.innerHTML='<div class="modal-note">Inicie o agente com start.ps1 para consultar e baixar builds oficiais.</div>';return}
@@ -258,7 +286,7 @@ $('#addVersion').addEventListener('click',async()=>{
 $('#modalContent').addEventListener('click',async event=>{
   const download=event.target.closest('.download-php');if(!download)return;
   const version=download.dataset.version;
-  showModal('CONFIRMAR DOWNLOAD OFICIAL',`<h2>Adicionar PHP ${escapeHtml(version)}?</h2><p class="modal-copy">O pacote será baixado de downloads.php.net, validado pelo SHA-256 publicado pelo PHP e extraído como runtime isolado em <code>runtimes/</code>.</p><div class="modal-note">O Studio migra configurações e ativa somente as extensões que vêm no pacote oficial. DLLs externas sem build compatível ficam listadas e bloqueiam a troca até serem instaladas nesse runtime. A versão atual continua disponível para voltar.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Voltar</button><button class="primary-button" id="confirmPhpDownload">Baixar e preparar</button></div>`);
+  showModal('CONFIRMAR DOWNLOAD OFICIAL',`<h2>Adicionar PHP ${escapeHtml(version)}?</h2><p class="modal-copy">O pacote será baixado de downloads.php.net, validado pelo SHA-256 publicado pelo PHP e extraído como runtime isolado em <code>runtimes/</code>.</p><div class="modal-note">O Studio migra o php.ini e busca automaticamente no PECL as extensões em uso que faltam nessa versão. Você verá quais foram instaladas e o motivo de cada pendência antes de ativar o PHP.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Voltar</button><button class="primary-button" id="confirmPhpDownload">Baixar e preparar</button></div>`);
   $('#cancelAction').onclick=closeModal;
   $('#confirmPhpDownload').onclick=async()=>{
     const button=$('#confirmPhpDownload');button.disabled=true;button.textContent='Baixando e validando…';
@@ -267,11 +295,7 @@ $('#modalContent').addEventListener('click',async event=>{
       const missing = installed.dllCheck?.missing || [];
       recordActivity('Runtime PHP preparado', `PHP ${installed.version} · ${installed.threadSafety} · ${installed.architecture}`, missing.length ? 'Bloqueado' : 'Concluído');
       await loadLiveStatus();
-      if (missing.length) {
-        toast(`PHP ${installed.version} preparado. Antes de ativar, instale as DLLs ausentes: ${missing.map(item=>item.dll).join(', ')}.`, true);
-      } else {
-        toast(`PHP ${installed.version} preparado. Abra Configurar e selecione “Ativar esta versão” para trocar.`);
-      }
+      showExtensionPreparationResult(installed);
     } catch(error){
       button.disabled=false;
       button.textContent='Tentar novamente';
@@ -398,7 +422,7 @@ function renderDllRegistry(){
   $('#dllRegistrySummary').innerHTML=`<div><small>VERSÃO ANALISADA</small><strong>PHP ${escapeHtml(version)}${isCurrent?' · em uso':''}</strong></div><div><small>DLLS REGISTRADAS</small><strong>${dlls.length}</strong></div><div><small>PRESENTES</small><strong>${dlls.length-missing.length}</strong></div><div><small>AUSENTES</small><strong>${missing.length}</strong></div>`;
   $('#dllRegistryChecked').textContent=`${filtered.length} de ${dlls.length} dependência(s) · registro de ${new Date(registry.updatedAt||registry.checkedAt||Date.now()).toLocaleString('pt-BR')}`;
   const sorted=[...filtered].sort((a,b)=>(a.present===b.present?0:a.present?1:-1)||String(a.dll).localeCompare(String(b.dll)));
-  $('#dllRegistryList').innerHTML=sorted.map(item=>`<article class="dll-registry-row ${item.present?'present':'missing'}"><span class="dll-registry-icon">${item.present?'✓':'!'}</span><div class="dll-registry-main"><strong>${escapeHtml(item.dll)}</strong><small>${escapeHtml(dllKindLabel(item.kind))}${item.directive?` · ${escapeHtml(item.directive)}`:''} · ${escapeHtml((item.sources||[]).join(', ')||'ambiente')}${!item.present&&item.kind==='php_extension'?` · <button class="pecl-link" type="button" data-dll="${escapeHtml(item.dll)}">versões PECL</button>`:''}</small></div><span class="dll-registry-state">${item.present?'presente':'ausente'}</span><span class="dll-registry-path" title="${escapeHtml(item.path||'')}">${escapeHtml(item.path||(item.present?'localizada':'não localizada neste runtime'))}</span></article>`).join('')||`<div class="empty-state"><strong>${dlls.length?'Nenhuma DLL corresponde ao filtro':'Nenhuma DLL registrada'}</strong><p>${dlls.length?'Ajuste a busca ou o estado selecionado.':'Ative extensões no php.ini e atualize o registro.'}</p></div>`;
+  $('#dllRegistryList').innerHTML=sorted.map(item=>`<article class="dll-registry-row ${item.present?'present':'missing'}"><span class="dll-registry-icon">${item.present?'✓':'!'}</span><div class="dll-registry-main"><strong>${escapeHtml(item.dll)}</strong><small>${escapeHtml(dllKindLabel(item.kind))}${item.directive?` · ${escapeHtml(item.directive)}`:''} · ${escapeHtml((item.sources||[]).join(', ')||'ambiente')}${!item.present&&item.kind==='php_extension'?` · <button class="pecl-link" type="button" data-dll="${escapeHtml(item.dll)}">versões PECL</button>`:''}</small></div><span class="dll-registry-state">${item.builtIn?'integrada ao PHP':item.present?'presente':'ausente'}</span><span class="dll-registry-path" title="${escapeHtml(item.path||'')}">${escapeHtml(item.builtIn?'Incluída no executável do PHP':item.path||(item.present?'localizada':'não localizada neste runtime'))}</span></article>`).join('')||`<div class="empty-state"><strong>${dlls.length?'Nenhuma DLL corresponde ao filtro':'Nenhuma DLL registrada'}</strong><p>${dlls.length?'Ajuste a busca ou o estado selecionado.':'Ative extensões no php.ini e atualize o registro.'}</p></div>`;
   bindFindMissingDlls();
 }
 async function loadDllRegistry(){

@@ -8,7 +8,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { createHash } = require('node:crypto');
 const { apachePrimaryPort } = require('../lib/apache-config.cjs');
-const { extensionDllName, phpExtensionDirectives, rewriteXamppPhpConfig } = require('../lib/php-compat.cjs');
+const { escapeRegExp, extensionDllName, isBuiltinOpcache, phpExtensionDirectives, rewriteXamppPhpConfig } = require('../lib/php-compat.cjs');
 const { isInside, samePath, readText, writeAtomically } = require('../lib/runtime-state.cjs');
 
 // Carrega as rotinas de ativação sem iniciar a API ou abrir serviços do Windows.
@@ -52,7 +52,7 @@ function fixture(t, mode, { state = 4, syntax = true, responsive = true } = {}) 
     getVersions: () => [{ version: '8.2.2', root: target, architecture: 'x64', threadSafety: 'TS' }],
     readEnvironmentState: () => JSON.parse(readText(stateFile) || '{}'),
     writeEnvironmentState: value => writeAtomically(stateFile, JSON.stringify(value)),
-    phpExtensionDirectives, rewriteXamppPhpConfig, apachePrimaryPort,
+    phpExtensionDirectives, isBuiltinOpcache, rewriteXamppPhpConfig, apachePrimaryPort,
     currentDllRegistry: () => ({ dlls: [] }), verifyRuntimeDlls: () => ({ compatible: true }),
     collectDllRegistry: () => ({}), persistDllRegistry: () => ({}),
     apacheConfigFiles: () => [], phpRuntimeApacheConflicts: () => [], apacheErrorLogSize: () => 0, apacheExtensionLoadFailures: () => [],
@@ -142,7 +142,7 @@ test('a lista de versões deixa de apontar uma extensão instalada e habilitada 
     name, dll: `php_${name}.dll`, directive: 'extension'
   }));
   const context = vm.createContext({
-    fs, path, readText, phpExtensionDirectives,
+    fs, path, readText, phpExtensionDirectives, isBuiltinOpcache, samePath, APP_ROOT: root,
     currentDllRegistry: () => ({ dlls: [] }),
     getVersions: () => [{ root, missingExtensions: required }],
     activeApacheRuntime: () => null,
@@ -159,4 +159,76 @@ test('a lista de versões deixa de apontar uma extensão instalada e habilitada 
   fs.unlinkSync(path.join(root, 'ext', 'php_redis.dll'));
   assert.deepEqual(pending(), ['redis']);
   assert.equal(required.length, 3);
+});
+
+test('OPcache integrado do PHP 8.5 dispensa a DLL e preserva a política do php.ini', t => {
+  const f = fixture(t, 'legacy');
+  Object.assign(f.context, { extensionDllName });
+  vm.runInContext(functionsBetween('function runtimeDllFiles(', 'const PECL_VERSION_CACHE'), f.context);
+  vm.runInContext(functionsBetween('function migratePhpIni(', 'function setPhpExtensionDirectory('), f.context);
+  const ini = 'zend_extension="C:/php antigo/ext/php_opcache.dll"\r\nopcache.enable=0\r\nopcache.enable_cli=0';
+  const required = [{ name: 'opcache', dll: 'php_opcache.dll', kind: 'php_extension', directive: 'zend_extension' }];
+  writeAtomically(f.phpIni, ini);
+  const prepare = version => f.context.migratePhpIni(f.phpIni, f.target, version);
+  assert.deepEqual(Array.from(prepare('8.4.12').extensions.missing, item => item.dll), ['php_opcache.dll']);
+  const migrated = prepare('8.5.13');
+  assert.equal(migrated.extensions.missing.length, 0);
+  for (const text of [migrated.ini, f.context.ensureRequiredPhpExtensions(ini, required, '8.5.13')]) {
+    assert.deepEqual(phpExtensionDirectives(text), []);
+    assert.match(text, /^opcache.enable=0$/m);
+    assert.match(text, /^opcache.enable_cli=0$/m);
+  }
+  assert.equal(f.context.verifyRuntimeDlls(f.target, required, '8.4.12').compatible, false);
+  const builtin = f.context.verifyRuntimeDlls(f.target, required, '8.5.13').details[0];
+  assert.equal(builtin.builtIn, true);
+  assert.equal(builtin.path, null);
+  f.context.execFileAsync = (_exe, args) => ({ stdout: args.includes('-m') ? 'Core\nredis\n' : '8.5.13|TS|64' });
+  return assert.rejects(f.context.probePhpRuntime(f.target), /sem o OPcache integrado/);
+});
+
+test('Baixar pendentes preserva sucessos parciais e repete apenas extensões ausentes', async t => {
+  const f = fixture(t, 'legacy');
+  const item = name => ({ name, dll: `php_${name}.dll`, kind: 'php_extension', directive: 'extension' });
+  const redis = item('redis');
+  const legacy = { ...item('legado'), directive: 'zend_extension' };
+  const unsupported = item('incompativel');
+  const opcache = { ...item('opcache'), directive: 'zend_extension' };
+  const downloads = [];
+  let buildAvailable = false;
+  Object.assign(f.context, {
+    escapeRegExp, managedPhpRoot: value => value, phpBuildTarget: () => ({ version: '8.5.13', architecture: 'x64', threadSafety: 'ts' }),
+    getVersions: () => [{ root: f.target, missingExtensions: [redis, legacy, unsupported] }],
+    currentDllRegistry: () => ({ dlls: [redis, opcache] }), createPhpIniBackup: () => {},
+    installPeclExtension: async (root, dll, _pkg, _build, _progress, _downloadOnly, requirement) => {
+      downloads.push(dll);
+      if (dll === unsupported.dll && !buildAvailable) throw Error('Sem build compatível');
+      if (dll === legacy.dll) assert.equal(requirement.directive, 'zend_extension');
+      writeAtomically(path.join(root, 'ext', dll), 'test');
+      return { version: '1.0.0' };
+    },
+    probePhpRuntime: () => {
+      const enabled = phpExtensionDirectives(readText(f.phpIni));
+      assert.ok(enabled.some(item => item.name === 'redis'));
+      assert.ok(enabled.some(item => item.name === 'legado' && item.directive === 'zend_extension'));
+      assert.equal(enabled.some(item => item.name === 'opcache'), false);
+      assert.equal(enabled.some(item => item.name === 'incompativel'), buildAvailable);
+    }
+  });
+  vm.runInContext(functionsBetween('let phpActivationInProgress', 'function json('), f.context);
+  vm.runInContext(functionsBetween('function runtimeDllFiles(', 'const PECL_VERSION_CACHE'), f.context);
+  vm.runInContext(functionsBetween('function phpRequirementsForVersion(', 'function getVersionsWithDllChecks('), f.context);
+  vm.runInContext(functionsBetween('function preparedPhpRoot(', 'async function downloadWindowsPhpRuntime('), f.context);
+  writeAtomically(f.phpIni, 'zend_extension=opcache\nextension=incompativel\nextension="C:/php-antigo/ext/php_redis.dll" ; manter comentário');
+  await assert.rejects(f.context.preparePhpExtensions(f.config.phpRoot), /inativa/);
+  const first = f.context.preparePhpExtensions(f.target);
+  await assert.rejects(f.context.preparePhpExtensions(f.target), /já está alterando/);
+  const result = (await first).extensionPreparation;
+  assert.match(readText(f.phpIni), /^extension=php_redis\.dll ; manter comentário$/m);
+  assert.ok(!readText(f.phpIni).includes('php-antigo'));
+  assert.deepEqual(Array.from(result.installed, item => item.dll), [redis.dll, legacy.dll]);
+  assert.deepEqual(Array.from(result.pending, item => item.reason), ['Sem build compatível']);
+  buildAvailable = true;
+  assert.equal((await f.context.preparePhpExtensions(f.target)).extensionPreparation.pending.length, 0);
+  assert.equal((await f.context.preparePhpExtensions(f.target)).extensionPreparation.installed.length, 0);
+  assert.deepEqual(downloads, [redis.dll, legacy.dll, unsupported.dll, unsupported.dll]);
 });

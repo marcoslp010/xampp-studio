@@ -23,6 +23,7 @@ const {
   describeApacheConflicts,
   escapeRegExp,
   extensionDllName,
+  isBuiltinOpcache,
   phpExtensionDirectives,
   phpRuntimeApacheConflicts,
   phpRuntimeDependencyDlls,
@@ -104,6 +105,17 @@ const STATIC_FILES = new Map([
 ]);
 const MAX_BODY = 2 * 1024 * 1024;
 let phpActivationInProgress = false;
+const editingPhpRoots = new Set();
+
+async function withPhpRuntimeEdit(root, edit) {
+  const key = path.resolve(root).toLowerCase();
+  if (phpActivationInProgress || editingPhpRoots.has(key)) {
+    throw new Error('O Studio já está alterando este ambiente PHP. Aguarde a conclusão.');
+  }
+  editingPhpRoots.add(key);
+  try { return await edit(); }
+  finally { editingPhpRoots.delete(key); }
+}
 
 function json(res, code, payload) {
   const body = JSON.stringify(payload);
@@ -1986,8 +1998,11 @@ function runtimeDllFiles(root) {
   return files;
 }
 
-function verifyRuntimeDlls(root, requiredDlls = currentDllRegistry().dlls) {
+function verifyRuntimeDlls(root, requiredDlls = currentDllRegistry().dlls, version) {
   const resolved = path.resolve(root);
+  if (!version && requiredDlls.some(item => item.dll?.toLowerCase() === 'php_opcache.dll')) {
+    try { version = JSON.parse(readText(path.join(resolved, 'studio-runtime.json'))).version; } catch {}
+  }
   const files = runtimeDllFiles(resolved);
   const byName = new Map(files.map(item => [item.name.toLowerCase(), item]));
   const present = [];
@@ -1997,15 +2012,17 @@ function verifyRuntimeDlls(root, requiredDlls = currentDllRegistry().dlls) {
     if (required.kind === 'apache_module') found = files.find(item => /^php\d*apache2_4\.dll$/i.test(item.name)) || null;
     else if (required.kind === 'php_thread_safe') found = files.find(item => /^php\d*ts\.dll$/i.test(item.name)) || null;
     else found = byName.get(String(required.dll).toLowerCase()) || null;
+    const builtIn = required.kind === 'php_extension' && isBuiltinOpcache(required.dll, version);
     const detail = {
       name: required.name,
       dll: required.dll,
       kind: required.kind,
       sources: required.sources || [],
-      found: Boolean(found),
-      path: found?.path || null
+      found: builtIn || Boolean(found),
+      builtIn,
+      path: builtIn ? null : found?.path || null
     };
-    if (found) present.push(detail); else missing.push(detail);
+    if (detail.found) present.push(detail); else missing.push(detail);
   }
   return {
     compatible: missing.length === 0,
@@ -2066,7 +2083,6 @@ async function searchPeclVersions(rawRoot, rawDll, rawPackage, refresh = false) 
     packageHtml = await response.text();
   } catch (error) {
     result.error = `Não foi possível consultar o PECL: ${error.message}`;
-    PECL_VERSION_CACHE.set(cacheKey, { at: Date.now(), value: result });
     return result;
   }
   const releasePattern = new RegExp(`href="/get/${escapeRegExp(packageName)}-(\\d+\\.\\d+\\.\\d+)\\.tgz"`, 'gi');
@@ -2090,7 +2106,9 @@ async function searchPeclVersions(rawRoot, rawDll, rawPackage, refresh = false) 
     }
   }));
   result.available = result.releases.some(release => release.builds.length > 0);
-  PECL_VERSION_CACHE.set(cacheKey, { at: Date.now(), value: result });
+  if (result.available || result.releases.every(item => !item.error || item.error.includes('HTTP 404'))) {
+    PECL_VERSION_CACHE.set(cacheKey, { at: Date.now(), value: result });
+  }
   return result;
 }
 
@@ -2177,7 +2195,7 @@ function upsertPhpExtensionDirective(contents, dll, directive = 'extension', ali
   };
 }
 
-async function installPeclExtension(phpRoot, rawDll, rawPackage, rawBuildFile, job, downloadOnly = false) {
+async function installPeclExtension(phpRoot, rawDll, rawPackage, rawBuildFile, job, downloadOnly = false, requirement = null) {
   const targetRoot = managedPhpRoot(phpRoot);
   const target = phpBuildTarget(targetRoot);
   const packageName = rawPackage ? peclPackageFromDll(rawPackage) : peclPackageFromDll(rawDll);
@@ -2188,7 +2206,11 @@ async function installPeclExtension(phpRoot, rawDll, rawPackage, rawBuildFile, j
   const candidate = (catalog.releases || [])
     .flatMap(release => (release.compatibleBuilds || []).map(build => ({ ...build, release: release.version })))
     .find(build => build.compatible && (!rawBuildFile || String(build.file).toLowerCase() === String(rawBuildFile).toLowerCase()));
-  if (!candidate) throw new Error(`Não encontrei um build oficial compatível para ${requestedDll}. O PECL não publica um pacote para PHP ${target.phpMinor} ${target.threadSafety.toUpperCase()} ${target.compiler} ${target.architecture}.`);
+  if (!candidate) {
+    const failed = catalog.releases?.find(item => item.error && !item.error.includes('HTTP 404'));
+    throw new Error(catalog.error || (failed && `Falha ao consultar os builds de ${packageName}: ${failed.error}`)
+      || `Nenhum build compatível localizado para ${requestedDll} no PHP ${target.phpMinor} ${target.threadSafety.toUpperCase()} ${target.compiler} ${target.architecture}.`);
+  }
   job.step('search', 'succeeded', `Build ${candidate.file} selecionado.`);
 
   job.step('download', 'running', 'Baixando o pacote Windows oficial do PECL.');
@@ -2203,8 +2225,9 @@ async function installPeclExtension(phpRoot, rawDll, rawPackage, rawBuildFile, j
   job.step('download', 'succeeded', `${(archive.length / 1024 / 1024).toFixed(2)} MB · SHA-256 ${sha256.slice(0, 16)}…`);
 
   job.step('extract', 'running', 'Validando e extraindo o pacote.');
-  const stagingRoot = path.join(APP_ROOT, 'runtimes', `.staging-ext-${process.pid}-${Date.now()}`);
-  const archivePath = path.join(APP_ROOT, 'downloads', `pecl-${packageName}-${process.pid}-${Date.now()}.zip`);
+  const operationId = randomBytes(12).toString('hex');
+  const stagingRoot = path.join(APP_ROOT, 'runtimes', `.staging-ext-${operationId}`);
+  const archivePath = path.join(APP_ROOT, 'downloads', `pecl-${packageName}-${operationId}.zip`);
   fs.mkdirSync(path.dirname(archivePath), { recursive: true });
   fs.mkdirSync(path.dirname(stagingRoot), { recursive: true });
   let copied = false;
@@ -2251,10 +2274,12 @@ async function installPeclExtension(phpRoot, rawDll, rawPackage, rawBuildFile, j
     const targetDll = path.join(extDirectory, path.basename(sourceDll));
     const iniPath = path.join(targetRoot, 'php.ini');
     if (!fs.existsSync(iniPath)) throw new Error('O runtime PHP selecionado não possui php.ini.');
-    const registryEntry = currentDllRegistry().dlls.find(item => String(item.dll).toLowerCase() === dllName);
+    const registryEntry = requirement || currentDllRegistry().dlls.find(item => String(item.dll).toLowerCase() === dllName);
     const directive = registryEntry?.directive === 'zend_extension' ? 'zend_extension' : 'extension';
     const ini = readText(iniPath);
-    const updated = upsertPhpExtensionDirective(ini, path.basename(sourceDll), directive, [packageName, registryEntry?.name]);
+    const updated = requirement
+      ? ensureRequiredPhpExtensions(setPhpExtensionDirectory(ini, targetRoot), [requirement], target.version)
+      : upsertPhpExtensionDirective(ini, path.basename(sourceDll), directive, [packageName, registryEntry?.name]).text;
     const snapshot = createSwitchBackup([
       ['php.ini', iniPath],
       [`${path.basename(sourceDll)}-existing`, targetDll]
@@ -2263,7 +2288,7 @@ async function installPeclExtension(phpRoot, rawDll, rawPackage, rawBuildFile, j
     try {
       fs.copyFileSync(sourceDll, targetDll);
       copied = !snapshot.files.some(file => path.basename(file.name) === `${path.basename(sourceDll)}-existing`);
-      writeAtomically(iniPath, updated.text);
+      writeAtomically(iniPath, updated);
     } catch (error) {
       try { restoreSwitchBackup(rollbackSnapshot); } catch {}
       throw error;
@@ -2291,7 +2316,7 @@ async function installPeclExtension(phpRoot, rawDll, rawPackage, rawBuildFile, j
       sha256,
       source: candidate.url,
       backup: snapshot.directory,
-      configured: updated.changed
+      configured: updated !== ini
     };
   } catch (error) {
     if (copied) {
@@ -2317,6 +2342,17 @@ function pendingPhpExtensions(root, ini, originallyMissing) {
   });
 }
 
+function phpRequirementsForVersion(registry, previouslyMissing = []) {
+  const required = new Map(registry.map(item => [item.dll.toLowerCase(), item]));
+  // Uma instalação anterior pode ter sido preparada a partir de outro php.ini.
+  for (const item of previouslyMissing) {
+    if (/^php_[a-z0-9_.-]+\.dll$/i.test(item?.dll) && !required.has(item.dll.toLowerCase())) {
+      required.set(item.dll.toLowerCase(), { ...item, kind: 'php_extension', sources: ['php.ini migrado'] });
+    }
+  }
+  return required;
+}
+
 function getVersionsWithDllChecks() {
   const registry = currentDllRegistry();
   const versions = getVersions();
@@ -2328,14 +2364,17 @@ function getVersionsWithDllChecks() {
   } catch { apache = null; }
   return {
     versions: versions.map(item => {
-      const ini = readText(path.join(item.root, 'php.ini'));
+      const ini = readText(item.current ? activePhpIni(getConfig()) : path.join(item.root, 'php.ini'));
+      const extensions = [...phpRequirementsForVersion(registry.dlls, item.missingExtensions).values()]
+        .filter(entry => entry.kind === 'php_extension' && !isBuiltinOpcache(entry.dll, item.version));
       const conflicts = apache && apacheFiles.length
         ? phpRuntimeApacheConflicts(item.root, ini, apache.root, apacheFiles)
         : [];
       return {
         ...item,
-        missingExtensions: pendingPhpExtensions(item.root, ini, item.missingExtensions),
-        dllCheck: verifyRuntimeDlls(item.root, registry.dlls),
+        canPrepareExtensions: !item.current && samePath(path.dirname(item.root), path.join(APP_ROOT, 'runtimes')),
+        missingExtensions: pendingPhpExtensions(item.root, ini, extensions),
+        dllCheck: verifyRuntimeDlls(item.root, registry.dlls, item.version),
         apacheCompatibility: {
           compatible: conflicts.length === 0,
           conflicts: conflicts.map(entry => ({ extension: entry.extension, dll: entry.dll, missing: entry.missing.slice(0, 8) })),
@@ -2367,6 +2406,10 @@ function migratePhpIni(sourceIni, targetRoot, targetVersion, templateRoot = targ
     if (!extension || /^\s*[;#]/.test(line)) return line;
     const originalValue = extension[3].replace(/\s*[;#].*$/, '').trim().replace(/^['"]|['"]$/g, '');
     const dll = extensionDllName(originalValue);
+    if (isBuiltinOpcache(dll, targetVersion)) {
+      migrated.push('opcache');
+      return `; OPcache integrado ao PHP ${targetVersion}\n; ${line.trim()}`;
+    }
     const available = [path.join(templateRoot, 'ext', dll), path.join(templateRoot, dll)].some(file => fs.existsSync(file));
     const name = dll.replace(/^php_/i, '').replace(/\.dll$/i, '');
     if (available) {
@@ -2395,7 +2438,10 @@ async function probePhpRuntime(root, expected) {
   }
   const modules = await execFileAsync(executable, ['-c', ini, '-m'], { timeout: 12000, windowsHide: true, maxBuffer: 32 * 1024 });
   const startupText = `${modules.stdout || ''}\n${modules.stderr || ''}`;
-  const loadFailure = startupText.match(/Unable to load dynamic library[^\r\n]*/i);
+  if (isBuiltinOpcache('php_opcache.dll', version) && !/^Zend OPcache\s*$/im.test(modules.stdout)) {
+    throw new Error(`O PHP ${version} iniciou sem o OPcache integrado esperado.`);
+  }
+  const loadFailure = startupText.match(/(?:Unable to load dynamic library|Failed loading|Failed to load Zend extension)[^\r\n]*/i);
   if (loadFailure) throw new Error(`A configuração copiada ainda aponta para uma DLL incompatível: ${loadFailure[0].slice(0, 260)}`);
   return { version, threadSafety, architecture, modules: modules.stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean) };
 }
@@ -2434,19 +2480,32 @@ function alignPhpIniPaths(contents, phpRoot, apacheRoot = null) {
   return output;
 }
 
-function ensureRequiredPhpExtensions(contents, requiredDlls) {
-  const activeDlls = new Set(phpExtensionDirectives(contents).map(item => item.dll.toLowerCase()));
+function ensureRequiredPhpExtensions(contents, requiredDlls, version) {
+  const activeDlls = new Set();
+  const extensions = new Map(requiredDlls.filter(item => item.kind === 'php_extension').map(item => [item.dll.toLowerCase(), item]));
   const additions = [];
-  let updated = contents;
-  for (const item of requiredDlls) {
-    if (item.kind !== 'php_extension' || activeDlls.has(String(item.dll).toLowerCase())) continue;
+  let updated = contents.replace(/^[ \t]*(?:zend_extension|extension)[ \t]*=[^\r\n]+/gim, line => {
+    const setting = phpExtensionDirectives(line)[0];
+    if (!setting) return line;
+    if (isBuiltinOpcache(setting.dll, version)) return `; ${line}`;
+    const dll = setting.dll.toLowerCase();
+    activeDlls.add(dll);
+    const item = extensions.get(dll);
+    if (!item) return line;
+    const directive = item.directive === 'zend_extension' ? 'zend_extension' : 'extension';
+    const comment = line.match(/[ \t]*[;#].*$/)?.[0] || '';
+    if (setting.directive === directive && !/[\\/]/.test(line.slice(0, line.length - comment.length))) return line;
+    return `${directive}=${item.dll}${comment}`;
+  });
+  for (const item of extensions.values()) {
+    if (isBuiltinOpcache(item.dll, version) || activeDlls.has(item.dll.toLowerCase())) continue;
     const value = item.directive === 'zend_extension'
       ? (String(item.name).toLowerCase() === 'opcache' ? 'opcache' : item.dll)
       : item.dll;
     // A nota "não está disponível neste pacote" e a diretiva comentada ficam
     // obsoletas quando a DLL é habilitada de novo: removê-las evita um
     // php.ini que se contradiz.
-    updated = updated.replace(/^;[ \t]*XAMPP Studio:[^\r\n]*não está disponível neste pacote PHP[^\r\n]*\r?\n/im, '');
+    updated = updated.replace(new RegExp(`^;[ \\t]*XAMPP Studio: ${escapeRegExp(item.name)} não está disponível neste pacote PHP[^\\r\\n]*\\r?\\n`, 'im'), '');
     updated = updated.replace(new RegExp(`^;[ \\t]*(?:zend_extension|extension)[ \\t]*=[ \\t]*${escapeRegExp(item.dll)}[^\\r\\n]*\\r?\\n`, 'im'), '');
     additions.push(`${item.directive === 'zend_extension' ? 'zend_extension' : 'extension'}=${value}`);
     activeDlls.add(String(item.dll).toLowerCase());
@@ -2756,7 +2815,7 @@ async function switchStandaloneEnvironment(phpRoot, apacheRootChoice = null) {
   const targetRoot = path.resolve(php.root);
   if (!fs.existsSync(path.join(targetRoot, 'php.exe')) || !fs.existsSync(path.join(targetRoot, 'php.ini'))) throw new Error('O runtime selecionado não tem php.exe e php.ini.');
   const requiredDlls = currentDllRegistry().dlls;
-  const dllCheck = verifyRuntimeDlls(targetRoot, requiredDlls);
+  const dllCheck = verifyRuntimeDlls(targetRoot, requiredDlls, php.version);
   if (!dllCheck.compatible) {
     const missing = dllCheck.missing.map(item => item.dll).join(', ');
     throw new Error(`Troca bloqueada: ${dllCheck.missing.length} DLL(s) exigida(s) não existe(m) em PHP ${php.version} (${missing}).`);
@@ -2785,7 +2844,7 @@ async function switchStandaloneEnvironment(phpRoot, apacheRootChoice = null) {
     ? path.join(apache.root, 'conf', 'httpd.conf')
     : currentApache.config;
   const phpIniPath = path.join(targetRoot, 'php.ini');
-  const updatedPhpIni = ensureRequiredPhpExtensions(alignPhpIniPaths(setPhpExtensionDirectory(readText(phpIniPath), targetRoot), targetRoot, apache.root), requiredDlls);
+  const updatedPhpIni = ensureRequiredPhpExtensions(alignPhpIniPaths(setPhpExtensionDirectory(readText(phpIniPath), targetRoot), targetRoot, apache.root), requiredDlls, php.version);
   const apacheFiles = apacheConfigFiles(apache.root, sourceConfig);
   const conflicts = phpRuntimeApacheConflicts(targetRoot, updatedPhpIni, apache.root, apacheFiles);
   if (conflicts.length) {
@@ -2877,7 +2936,7 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
   const targetRoot = path.resolve(php.root);
   if (!fs.existsSync(path.join(targetRoot, 'php.exe')) || !fs.existsSync(path.join(targetRoot, 'php.ini'))) throw new Error('O runtime selecionado não tem php.exe e php.ini.');
   const requiredDlls = currentDllRegistry().dlls;
-  const dllCheck = verifyRuntimeDlls(targetRoot, requiredDlls);
+  const dllCheck = verifyRuntimeDlls(targetRoot, requiredDlls, php.version);
   if (!dllCheck.compatible) {
     const missing = dllCheck.missing.map(item => item.dll).join(', ');
     throw new Error(`Troca bloqueada: ${dllCheck.missing.length} DLL(s) usada(s) pelo ambiente atual não existe(m) em PHP ${php.version} (${missing}). Instale as DLLs nesse runtime ou ajuste as extensões ativas antes de trocar.`);
@@ -2911,7 +2970,7 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
   const apacheConfig = apache.generatedConfig?.config || apache.config;
   const apachePort = apachePrimaryPort(apache.generatedConfig?.text || readText(apacheConfig));
   const phpConfig = readText(path.join(targetRoot, 'php.ini'));
-  const updatedPhpIni = ensureRequiredPhpExtensions(alignPhpIniPaths(setPhpExtensionDirectory(phpConfig, targetRoot), targetRoot, apache.root), requiredDlls);
+  const updatedPhpIni = ensureRequiredPhpExtensions(alignPhpIniPaths(setPhpExtensionDirectory(phpConfig, targetRoot), targetRoot, apache.root), requiredDlls, php.version);
   const apacheFiles = apacheConfigFiles(apache.root, apache.config || path.join(apache.root, 'conf', 'httpd.conf'));
   const conflicts = phpRuntimeApacheConflicts(targetRoot, updatedPhpIni, apache.root, apacheFiles);
   if (conflicts.length) {
@@ -3026,6 +3085,69 @@ async function getMySqlIdentity(executable) {
   }
 }
 
+function preparedPhpRoot(rawRoot) {
+  const root = managedPhpRoot(rawRoot);
+  const config = getConfig();
+  const runtimes = path.join(APP_ROOT, 'runtimes');
+  const active = [config.phpRoot, config.phpIniDir].filter(Boolean).some(dir =>
+    samePath(fs.existsSync(dir) ? fs.realpathSync(dir) : dir, root));
+  if (active || !samePath(path.dirname(root), runtimes) || path.basename(root).startsWith('.')) {
+    throw new Error('Escolha uma versão preparada e inativa do PHP na pasta runtimes do Studio.');
+  }
+  return root;
+}
+
+async function preparePhpExtensions(rawRoot, job) {
+  const root = preparedPhpRoot(rawRoot);
+  return withPhpRuntimeEdit(root, async () => {
+    const target = phpBuildTarget(root);
+    const runtime = getVersions().find(item => samePath(item.root, root));
+    const known = phpRequirementsForVersion(currentDllRegistry().dlls, runtime?.missingExtensions);
+    const required = [...known.values()];
+    const before = verifyRuntimeDlls(root, required, target.version);
+    const installed = [];
+    const reasons = new Map();
+    for (const item of before.missing) {
+      if (item.kind !== 'php_extension' || item.dll.toLowerCase() === 'php_opcache.dll') {
+        reasons.set(item.dll, 'Dependência do pacote PHP/Apache. Confira os arquivos do runtime selecionado.');
+        continue;
+      }
+      const label = `Instalar ${item.name}`;
+      const progress = { step: (_phase, _state, detail) => job?.step(label, 'running', detail) };
+      try {
+        const extension = await installPeclExtension(root, item.dll, null, null, progress, false, known.get(item.dll.toLowerCase()));
+        installed.push({ name: item.name, dll: item.dll, version: extension.version });
+        job?.step(label, 'succeeded', `${item.name} ${extension.version} carregada no PHP ${target.version}.`);
+      } catch (error) {
+        reasons.set(item.dll, error.message);
+        job?.step(label, 'failed', error.message);
+      }
+    }
+
+    const dllCheck = verifyRuntimeDlls(root, required, target.version);
+    const present = new Set(dllCheck.details.filter(item => item.found).map(item => item.dll.toLowerCase()));
+    const ini = path.join(root, 'php.ini');
+    const original = readText(ini);
+    if (!original) throw new Error('Não foi possível ler o php.ini desta versão.');
+    const missingExtensions = new Set(dllCheck.missing.filter(item => item.kind === 'php_extension').map(item => item.dll.toLowerCase()));
+    const loadable = setPhpExtensionDirectory(original, root).replace(/^[ \t]*(?:zend_extension|extension)[ \t]*=[^\r\n]+/gim, line =>
+      missingExtensions.has(phpExtensionDirectives(line)[0]?.dll.toLowerCase()) ? `; ${line}` : line);
+    const settings = ensureRequiredPhpExtensions(loadable, required.filter(item => present.has(item.dll.toLowerCase())), target.version);
+    if (settings !== original) {
+      createPhpIniBackup(root, ini);
+      writeAtomically(ini, settings);
+    }
+    try {
+      await probePhpRuntime(root, { version: target.version, architecture: target.architecture, threadSafety: target.threadSafety.toUpperCase() });
+    } catch (error) {
+      if (settings !== original) writeAtomically(ini, original);
+      throw error;
+    }
+    const pending = dllCheck.missing.map(({ name, dll }) => ({ name, dll, reason: reasons.get(dll) || 'Dependência ausente.' }));
+    return { root, version: target.version, dllCheck, extensionPreparation: { installed, pending } };
+  });
+}
+
 async function downloadWindowsPhpRuntime(version, job) {
   job?.step('Download', 'running', `Consultando o pacote oficial do PHP ${version}.`);
   const catalog = await listWindowsPhpReleases();
@@ -3042,9 +3164,8 @@ async function downloadWindowsPhpRuntime(version, job) {
     if (!metadata || metadata.sha256 !== release.sha256 || metadata.version !== version) {
       throw new Error('Já existe outra instalação nessa pasta. Confira a versão em Versões do PHP.');
     }
-    await probePhpRuntime(targetRoot, release);
     job?.step('Download', 'succeeded', 'O pacote já está preparado.');
-    return { ...metadata, root: targetRoot, dllCheck: verifyRuntimeDlls(targetRoot), alreadyPrepared: true };
+    return { ...metadata, ...await preparePhpExtensions(targetRoot, job), alreadyPrepared: true };
   }
   const response = await fetch(release.url, { headers: { 'user-agent': 'XAMPP-Studio/0.1' }, signal: AbortSignal.timeout(300000) });
   if (!response.ok) throw new Error(`O download do PHP falhou (HTTP ${response.status}).`);
@@ -3081,9 +3202,8 @@ async function downloadWindowsPhpRuntime(version, job) {
     const metadata = { version: release.version, threadSafety: release.threadSafety, architecture: release.architecture, compiler: release.compiler, source: release.url, sha256: actualHash, extensions: migrated.extensions, installedAt: new Date().toISOString() };
     fs.writeFileSync(path.join(stagingRoot, 'studio-runtime.json'), JSON.stringify(metadata, null, 2), { flag: 'wx' });
     fs.renameSync(stagingRoot, targetRoot);
-    const dllCheck = verifyRuntimeDlls(targetRoot, currentDllRegistry().dlls);
     job?.step('Validação', 'succeeded', 'PHP preparado para revisão antes da ativação.');
-    return { ...metadata, root: targetRoot, dllCheck };
+    return { ...metadata, ...await preparePhpExtensions(targetRoot, job) };
   } catch (error) {
     fs.rmSync(stagingRoot, { recursive: true, force: true });
     throw error;
@@ -3240,7 +3360,9 @@ async function handler(req, res) {
         dll: typeof body.dll === 'string' ? body.dll : null,
         package: typeof body.package === 'string' ? body.package : null,
         buildFile: typeof body.buildFile === 'string' ? body.buildFile : null
-      }, context => installPeclExtension(body.phpRoot, body.dll, body.package, body.buildFile, context, downloadOnly));
+      }, context => downloadOnly
+        ? installPeclExtension(body.phpRoot, body.dll, body.package, body.buildFile, context, true)
+        : withPhpRuntimeEdit(managedPhpRoot(body.phpRoot), () => installPeclExtension(body.phpRoot, body.dll, body.package, body.buildFile, context)));
       return json(res, 202, { job });
     }
     if (req.method === 'GET' && url.pathname === '/api/php/releases') return json(res, 200, await listWindowsPhpReleases());
@@ -3276,6 +3398,16 @@ async function handler(req, res) {
       if (typeof body.mysqlRoot !== 'string' || !path.isAbsolute(body.mysqlRoot)) return json(res, 400, { error: 'Escolha um runtime MySQL/MariaDB preparado.' });
       return json(res, 200, await switchMySqlRuntime(body.mysqlRoot));
     }
+    if (req.method === 'POST' && url.pathname === '/api/php/extensions/prepare-async') {
+      const body = await readBody(req);
+      if (typeof body.phpRoot !== 'string' || !path.isAbsolute(body.phpRoot)) return json(res, 400, { error: 'Escolha uma versão PHP preparada.' });
+      const root = preparedPhpRoot(body.phpRoot);
+      const type = 'php.extensions.prepare';
+      const active = jobManager.list({ type, limit: 100 }).find(item =>
+        samePath(item.payload.phpRoot, root) && ['queued', 'running'].includes(item.status));
+      const job = active || jobManager.create(type, { phpRoot: root }, context => preparePhpExtensions(root, context));
+      return json(res, 202, { job });
+    }
     if (req.method === 'POST' && (url.pathname === '/api/php/install' || url.pathname === '/api/php/install-async')) {
       const body = await readBody(req);
       if (typeof body.version !== 'string' || !/^\d+\.\d+\.\d+(?:-\d+)?$/.test(body.version)) return json(res, 400, { error: 'Informe a versão PHP da lista oficial.' });
@@ -3292,6 +3424,7 @@ async function handler(req, res) {
       if (typeof body.phpRoot !== 'string' || !path.isAbsolute(body.phpRoot)) return json(res, 400, { error: 'Escolha um runtime PHP instalado.' });
       if (body.apacheRoot != null && (typeof body.apacheRoot !== 'string' || !path.isAbsolute(body.apacheRoot))) return json(res, 400, { error: 'Escolha um runtime Apache preparado.' });
       if (phpActivationInProgress) return json(res, 409, { error: 'Já existe uma troca de PHP em andamento. Aguarde a conclusão.' });
+      if (editingPhpRoots.size) return json(res, 409, { error: 'Aguarde a conclusão da configuração do PHP antes de ativar outra versão.' });
       phpActivationInProgress = true;
       try {
         const standalone = body.mode === 'standalone' || (url.pathname === '/api/environment/activate' && body.mode !== 'legacy');
@@ -3311,7 +3444,8 @@ async function handler(req, res) {
     if (req.method === 'GET' && url.pathname === '/api/php/settings') return json(res, 200, readPhpSettings(url.searchParams.get('phpRoot')));
     if (req.method === 'POST' && url.pathname === '/api/php/settings') {
       const body = await readBody(req);
-      return json(res, 200, await applyPhpSettings(body.values, body.phpRoot));
+      const root = managedPhpRoot(body.phpRoot);
+      return json(res, 200, await withPhpRuntimeEdit(root, () => applyPhpSettings(body.values, root)));
     }
     if (req.method === 'GET' && url.pathname === '/api/performance') return json(res, 200, getPerformanceSettings());
     if (req.method === 'POST' && url.pathname === '/api/performance/apply') {
