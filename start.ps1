@@ -47,3 +47,4 @@ Write-Host 'O servidor le o XAMPP local e grava backups nesta pasta.' -Foregroun
 if ($AsAdmin) { Write-Host 'Modo administrador ativo para controlar servicos e Firewall do Windows.' -ForegroundColor Yellow }
 Write-Host 'Abra o endereco acima no navegador. Pressione Ctrl+C para encerrar.' -ForegroundColor DarkGray
 node $serverPath
+exit $LASTEXITCODE

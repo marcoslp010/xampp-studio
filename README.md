@@ -45,13 +45,15 @@ Sem dependências de runtime além do Node: o agente usa apenas módulos nativos
 
 ## Iniciar
 
-No PowerShell, execute `./start.ps1` e abra `http://127.0.0.1:43197`. Não abra `index.html` como `file:///...`, porque essa origem não pode chamar o agente local. Use Ctrl+C no terminal para encerrar. As ações que exigem privilégio abrem uma solicitação UAC do Windows e são executadas por `scripts/windows-service-helper.ps1`; execute `./start.ps1 -AsAdmin` quando quiser evitar prompts repetidos. Alterações do Firewall ainda exigem uma instância administrativa.
+Dê dois cliques em **Iniciar Studio.bat** e abra no navegador o endereço mostrado na janela (por padrão, `http://127.0.0.1:43197`). Mantenha a janela aberta enquanto usa o Studio. Pressione **Ctrl+C** para encerrar.
+
+Para iniciar com privilégios de administrador, clique com o botão direito em **Iniciar Studio.bat** e escolha **Executar como administrador**. Pelo PowerShell, você também pode usar `& '.\Iniciar Studio.bat' -AsAdmin`. O arquivo executa o `start.ps1` da mesma pasta e aplica a política de execução somente à sessão que abre.
 
 Para usar outra instalação, defina `$env:XAMPP_ROOT='D:\xampp'` antes de iniciar. O agente só aceita conexões de loopback local.
 
 ### Atualizar o PHP de um servidor Windows
 
-1. Na máquina que hospeda o XAMPP, extraia o Studio fora da pasta pública do Apache, por exemplo em `C:\Ferramentas\xampp-studio`. Com Node.js 20 ou superior instalado, execute `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start.ps1` nessa pasta. Abra o endereço que o terminal mostrar.
+1. Na máquina que hospeda o XAMPP, extraia o Studio fora da pasta pública do Apache, por exemplo em `C:\Ferramentas\xampp-studio`. Com Node.js 20 ou superior instalado, dê dois cliques em **Iniciar Studio.bat** nessa pasta. Abra o endereço que a janela mostrar.
 2. Em **Versões do PHP → Adicionar versão**, o Studio mostra primeiro a atualização da série em uso, quando disponível. Para continuar na série 8.2, escolha o pacote **8.2.x**. Clique em **Baixar e adicionar → Baixar e preparar**. O painel acompanha o download, a conferência do SHA-256 e o teste das extensões.
 3. O Studio busca no PECL as extensões que faltam, instala o build correspondente e valida o carregamento no PHP preparado. Para uma versão instalada anteriormente, abra **Configurar → Baixar pendentes**. O mesmo botão aparece no aviso de troca bloqueada. Confira o resultado e a compatibilidade com o Apache. Se o painel solicitar a integração do Apache, use **Serviços → Integrar ao Studio**.
 4. Em uma janela de manutenção, clique em **Ativar esta versão → Validar e usar PHP**. O Studio guarda um backup, valida a configuração e reinicia o Apache se ele já estiver em execução. Após a confirmação, confira a versão no painel e abra uma página PHP do seu site.
