@@ -103,6 +103,7 @@ const STATIC_FILES = new Map([
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']]
 ]);
 const MAX_BODY = 2 * 1024 * 1024;
+let phpActivationInProgress = false;
 
 function json(res, code, payload) {
   const body = JSON.stringify(payload);
@@ -548,7 +549,7 @@ function getVersions() {
   const runtimesRoot = path.join(APP_ROOT, 'runtimes');
   if (fs.existsSync(runtimesRoot)) {
     for (const item of fs.readdirSync(runtimesRoot, { withFileTypes: true })) {
-      if (!item.isDirectory()) continue;
+      if (!item.isDirectory() || item.name.startsWith('.staging-')) continue;
       const root = path.join(runtimesRoot, item.name);
       if (!fs.existsSync(path.join(root, 'php.exe'))) continue;
       let metadata = {};
@@ -1361,43 +1362,56 @@ function readPeArchitecture(executable) {
 /**
  * Identifica o PHP local que serve de referência ao catálogo de versões.
  *
- * Prefere o runtime ativo lido pelo scanStatus. Quando ele não responde —
- * por exemplo, o estado aponta para um runtime apagado de runtimes/ — usa o
- * PHP original do XAMPP (originalPhpRoot) e, por último, o PHP que acompanha
- * o XAMPP. Sem essa margem o catálogo fica bloqueado justamente quando
- * falta um runtime para baixar.
+ * O catálogo só precisa da identidade do executável. O PHP sem php.ini
+ * responde mesmo com extensões quebradas ou com Apache e MySQL parados.
+ * Se o runtime sumiu, tenta o PHP original registrado e o incluído no XAMPP.
  */
 async function resolveLocalPhpBaseline() {
-  const status = await scanStatus();
-  if (status.phpCli?.version) {
-    return { ...status.phpCli, root: status.phpRoot, source: 'runtime ativo', warning: null };
-  }
+  const { parseIniValue } = require('./lib/runtime-state.cjs');
   const environment = readEnvironmentState();
-  const declaredVersion = status.declaredVersion || environment.phpVersion || null;
-  const activeState = fs.existsSync(path.join(status.phpRoot, 'php.exe')) ? 'não respondeu' : 'não está no disco';
-  const candidates = [];
-  if (typeof environment.originalPhpRoot === 'string' && environment.originalPhpRoot.trim()) {
-    candidates.push({ root: environment.originalPhpRoot, label: 'PHP original do XAMPP' });
-  }
-  candidates.push({ root: path.join(XAMPP_ROOT, 'php'), label: 'PHP incluído no XAMPP' });
+  const bundledRoot = path.join(XAMPP_ROOT, 'php');
+  const properties = readText(path.join(XAMPP_ROOT, 'properties.ini'));
+  const activeRoot = environment.phpRoot || parseIniValue(properties, 'php_binary_directory') || bundledRoot;
+  const candidates = [
+    { root: activeRoot, label: 'runtime ativo' },
+    { root: environment.originalPhpRoot, label: 'PHP original do XAMPP' },
+    { root: bundledRoot, label: 'PHP incluído no XAMPP' }
+  ];
+  const trustedRoots = [XAMPP_ROOT, path.join(APP_ROOT, 'runtimes'), environment.phpRoot, environment.originalPhpRoot]
+    .filter(root => typeof root === 'string' && path.isAbsolute(root) && !/^[\\/]{2}/.test(root));
+  const visited = new Set();
   for (const candidate of candidates) {
-    const executable = path.join(candidate.root, 'php.exe');
-    if (!fs.existsSync(executable)) continue;
+    if (typeof candidate.root !== 'string' || !path.isAbsolute(candidate.root)) continue;
+    const root = path.resolve(candidate.root);
+    const key = root.toLowerCase();
+    const trustedRoot = trustedRoots.find(parent => isInside(parent, root));
+    if (!trustedRoot || visited.has(key)) continue;
+    visited.add(key);
     try {
-      const probe = await execFileAsync(executable, ['-r', 'echo PHP_VERSION,"|",(PHP_ZTS?"TS":"NTS"),"|",PHP_INT_SIZE*8;'], { timeout: 3000, windowsHide: true, maxBuffer: 4096 });
-      const [version, threadSafety, bits] = probe.stdout.trim().split('|');
-      if (!/^\d+\.\d+\.\d+/.test(version || '')) continue;
+      const executable = fs.realpathSync(path.join(root, 'php.exe'));
+      if (!isInside(fs.realpathSync(trustedRoot), executable)) continue;
+      const architecture = readPeArchitecture(executable);
+      const probe = await execFileAsync(executable, ['-n', '-r', 'echo PHP_VERSION,"|",(PHP_ZTS?"TS":"NTS");'], { timeout: 3000, windowsHide: true, maxBuffer: 4096 });
+      const identity = /^(\d+\.\d+\.\d+(?:(?:alpha|beta|RC)\d+|-dev)?)\|(TS|NTS)$/i.exec(probe.stdout.trim());
+      if (!identity) continue;
+      let version = identity[1];
+      // PHP_VERSION não contém a revisão de um ZIP reempacotado (ex.: -1).
+      let metadata = {};
+      try { metadata = JSON.parse(readText(path.join(root, 'studio-runtime.json'))) || {}; } catch {}
+      if (typeof metadata.version === 'string' && /^\d+\.\d+\.\d+-\d+$/.test(metadata.version) && metadata.version.split('-')[0] === version) {
+        version = metadata.version;
+      }
       return {
         version,
-        threadSafety,
-        architecture: bits === '32' ? '32-bit' : '64-bit',
-        root: candidate.root,
+        threadSafety: identity[2].toUpperCase(),
+        architecture: architecture === 'Win32' ? '32-bit' : '64-bit',
+        root,
         source: candidate.label,
-        warning: `O runtime ativo${declaredVersion ? ` (PHP ${declaredVersion})` : ''} ${activeState}; usando o ${candidate.label} ${version} como referência.`
+        warning: candidate === candidates[0] ? null : `Não consegui identificar o PHP ativo em ${activeRoot}. O catálogo usa o ${candidate.label} ${version}.`
       };
-    } catch { /* candidato não respondeu; tenta o próximo */ }
+    } catch { /* candidato ausente ou não executável; tenta o próximo */ }
   }
-  throw new Error(`Não encontrei nenhum PHP local para servir de referência: o runtime ativo${declaredVersion ? ` (PHP ${declaredVersion} em ${status.phpRoot})` : ''} ${activeState} e nenhum PHP do XAMPP respondeu. Reinstale o XAMPP ou restaure um runtime PHP para usar o catálogo.`);
+  throw new Error(`Não consegui identificar um PHP para Windows x86 ou x64 em ${activeRoot} nem no PHP original do XAMPP. Confira o caminho da instalação e se o php.exe funciona.`);
 }
 
 async function listWindowsPhpReleases() {
@@ -1405,15 +1419,19 @@ async function listWindowsPhpReleases() {
   const current = baseline.version;
   const threadSafety = baseline.threadSafety === 'TS' ? 'ts' : 'nts';
   const architecture = baseline.architecture === '32-bit' ? 'x86' : 'x64';
-  const response = await fetch('https://windows.php.net/downloads/releases/releases.json', {
+  const releaseBase = 'https://downloads.php.net/~windows/releases/';
+  const response = await fetch(`${releaseBase}releases.json`, {
     headers: { accept: 'application/json', 'user-agent': 'XAMPP-Studio/0.1' }, signal: AbortSignal.timeout(10000)
   });
   if (!response.ok) throw new Error(`O catálogo oficial do PHP respondeu HTTP ${response.status}.`);
   const releases = await response.json();
   const versions = [];
   for (const [branch, release] of Object.entries(releases)) {
-    const version = release.version;
-    if (!/^\d+\.\d+\.\d+(?:-\d+)?$/.test(version || '') || compareVersions(version, current) <= 0) continue;
+    const version = release?.version;
+    if (!/^\d+\.\d+\.\d+(?:-\d+)?$/.test(version || '')) continue;
+    const compared = compareVersions(version, current);
+    const preRelease = /(?:alpha|beta|RC)\d+$|-dev$/i.test(current);
+    if (compared < 0 || (compared === 0 && !preRelease)) continue;
     const variantEntry = Object.entries(release).find(([key]) => key.startsWith(`${threadSafety}-`) && key.endsWith(`-${architecture}`));
     const variant = variantEntry?.[1];
     if (!variant?.zip?.path || !/^[\w.-]+\.zip$/.test(variant.zip.path) || !/^[a-f0-9]{64}$/i.test(variant.zip.sha256 || '')) continue;
@@ -1421,7 +1439,7 @@ async function listWindowsPhpReleases() {
       version, branch, threadSafety: threadSafety.toUpperCase(), architecture,
       compiler: variantEntry[0].match(/(?:vs|vc)\d+/i)?.[0].toUpperCase() || null,
       size: variant.zip.size, sha256: variant.zip.sha256,
-      url: `https://windows.php.net/downloads/releases/${variant.zip.path}`,
+      url: `${releaseBase}${variant.zip.path}`,
       source: 'PHP for Windows · oficial'
     });
   }
@@ -1898,22 +1916,23 @@ function collectDllRegistry() {
     existing.path = existing.path || entry.path;
   };
 
-  for (const directive of phpExtensionDirectives(readText(path.join(config.phpRoot, 'php.ini')))) {
+  for (const directive of phpExtensionDirectives(readText(activePhpIni(config)))) {
     const file = findRuntimeDll(config.phpRoot, directive.dll);
     add({ name: directive.name, dll: directive.dll, kind: 'php_extension', directive: directive.directive, present: Boolean(file), path: file, sources: ['php.ini'] });
   }
 
   for (const line of readText(config.apacheConf).split(/\r?\n/)) {
     if (/^\s*[#;]/.test(line)) continue;
-    const module = line.match(/^\s*LoadModule\s+php_module\s+"?([^"\s]+)"?/i);
+    const module = line.match(/^\s*LoadModule\s+php_module\s+(?:"([^"]+)"|([^\s]+))/i);
     if (module) {
       const modulePath = findRuntimeDllByPattern(config.phpRoot, /^php\d*apache2_4\.dll$/i);
-      add({ name: 'php_module', dll: path.basename(module[1].replace(/\\/g, '/')), kind: 'apache_module', directive: 'loadmodule', present: Boolean(modulePath), path: modulePath, sources: ['httpd-xampp.conf'] });
+      add({ name: 'php_module', dll: path.basename((module[1] || module[2]).replace(/\\/g, '/')), kind: 'apache_module', directive: 'loadmodule', present: Boolean(modulePath), path: modulePath, sources: ['httpd-xampp.conf'] });
       continue;
     }
-    const load = line.match(/^\s*LoadFile\s+"?([^"\s]+)"?/i);
-    if (!load || !/\.dll$/i.test(load[1])) continue;
-    const dll = path.basename(load[1].replace(/\\/g, '/'));
+    const load = line.match(/^\s*LoadFile\s+(?:"([^"]+)"|([^\s]+))/i);
+    if (!load) continue;
+    const dll = path.basename((load[1] || load[2]).replace(/\\/g, '/'));
+    if (!/\.dll$/i.test(dll)) continue;
     const kind = /^php\d*ts\.dll$/i.test(dll) ? 'php_thread_safe' : 'apache_load_file';
     const file = existingFile([path.join(config.phpRoot, dll), path.join(config.phpRoot, 'ext', dll)]);
     add({ name: dll.replace(/\.dll$/i, ''), dll, kind, directive: 'loadfile', present: Boolean(file), path: file, sources: ['httpd-xampp.conf'] });
@@ -2288,6 +2307,16 @@ async function installPeclExtension(phpRoot, rawDll, rawPackage, rawBuildFile, j
   }
 }
 
+function pendingPhpExtensions(root, ini, originallyMissing) {
+  if (!Array.isArray(originallyMissing) || originallyMissing.length === 0) return [];
+  const enabled = phpExtensionDirectives(ini);
+  return originallyMissing.filter(item => {
+    const setting = enabled.find(entry => entry.dll.toLowerCase() === String(item.dll).toLowerCase()
+      && entry.directive === (item.directive || 'extension'));
+    return !setting || !findRuntimeDll(root, setting.dll);
+  });
+}
+
 function getVersionsWithDllChecks() {
   const registry = currentDllRegistry();
   const versions = getVersions();
@@ -2299,11 +2328,13 @@ function getVersionsWithDllChecks() {
   } catch { apache = null; }
   return {
     versions: versions.map(item => {
+      const ini = readText(path.join(item.root, 'php.ini'));
       const conflicts = apache && apacheFiles.length
-        ? phpRuntimeApacheConflicts(item.root, readText(path.join(item.root, 'php.ini')) || '', apache.root, apacheFiles)
+        ? phpRuntimeApacheConflicts(item.root, ini, apache.root, apacheFiles)
         : [];
       return {
         ...item,
+        missingExtensions: pendingPhpExtensions(item.root, ini, item.missingExtensions),
         dllCheck: verifyRuntimeDlls(item.root, registry.dlls),
         apacheCompatibility: {
           compatible: conflicts.length === 0,
@@ -2317,6 +2348,15 @@ function getVersionsWithDllChecks() {
   };
 }
 
+function activePhpIni(config) {
+  const roots = [config.phpRoot, XAMPP_ROOT, path.join(APP_ROOT, 'runtimes')];
+  if (config.phpIniDir && path.isAbsolute(config.phpIniDir) && roots.some(root => isInside(root, config.phpIniDir))) {
+    const apacheIni = path.join(config.phpIniDir, 'php.ini');
+    if (fs.existsSync(apacheIni)) return apacheIni;
+  }
+  return path.join(config.phpRoot, 'php.ini');
+}
+
 function migratePhpIni(sourceIni, targetRoot, targetVersion, templateRoot = targetRoot) {
   const template = readText(sourceIni) || readText(path.join(templateRoot, 'php.ini-development'));
   if (!template) throw new Error('Não encontrei um php.ini atual nem o php.ini-development do pacote oficial.');
@@ -2328,16 +2368,16 @@ function migratePhpIni(sourceIni, targetRoot, targetVersion, templateRoot = targ
     const originalValue = extension[3].replace(/\s*[;#].*$/, '').trim().replace(/^['"]|['"]$/g, '');
     const dll = extensionDllName(originalValue);
     const available = [path.join(templateRoot, 'ext', dll), path.join(templateRoot, dll)].some(file => fs.existsSync(file));
-    const name = originalValue.replace(/^php_/i, '').replace(/\.dll$/i, '').replace(/[^a-z0-9_.-]/gi, '') || dll;
-    if (available) { migrated.push(name); return line; }
+    const name = dll.replace(/^php_/i, '').replace(/\.dll$/i, '');
+    if (available) {
+      migrated.push(name);
+      // Um caminho absoluto no php.ini antigo carregaria a DLL do PHP anterior.
+      return /[\\/]/.test(originalValue) ? `${extension[1]}${extension[2]}=${dll}` : line;
+    }
     missing.push({ name, dll, directive: extension[2].toLowerCase() });
     return `; XAMPP Studio: ${name} não está disponível neste pacote PHP ${targetVersion}.\n; ${line.trim()}`;
   });
-  const extensionDirectory = path.join(targetRoot, 'ext').replace(/\\/g, '/');
-  let ini = lines.join('\r\n');
-  const activeExtensionDir = /^\s*extension_dir\s*=.*$/im;
-  if (activeExtensionDir.test(ini)) ini = ini.replace(activeExtensionDir, `extension_dir="${extensionDirectory}"`);
-  else ini += `\r\n\r\n; XAMPP Studio: diretório de módulos deste runtime\r\nextension_dir="${extensionDirectory}"\r\n`;
+  const ini = setPhpExtensionDirectory(lines.join('\r\n'), targetRoot);
   return { ini, extensions: { migrated: [...new Set(migrated)], missing, checkedAt: new Date().toISOString() } };
 }
 
@@ -2362,9 +2402,9 @@ async function probePhpRuntime(root, expected) {
 
 function setPhpExtensionDirectory(contents, root) {
   const directory = path.join(root, 'ext').replace(/\\/g, '/');
-  const active = /^\s*extension_dir\s*=.*$/im;
+  const active = /^[ \t]*extension_dir[ \t]*=.*$/gim;
   return active.test(contents)
-    ? contents.replace(active, `extension_dir="${directory}"`)
+    ? contents.replace(active, () => `extension_dir="${directory}"`)
     : `${contents}\r\n\r\n; XAMPP Studio: diretório de módulos deste runtime\r\nextension_dir="${directory}"\r\n`;
 }
 
@@ -2535,15 +2575,19 @@ function createSwitchBackup(files) {
   const destination = path.join(BACKUP_ROOT, `switch-${new Date().toISOString().replace(/[:.]/g, '-')}`);
   fs.mkdirSync(destination, { recursive: false });
   const copied = [];
+  const absent = [];
   try {
     for (const [name, source] of files) {
-      if (!fs.existsSync(source)) continue;
+      if (!fs.existsSync(source)) {
+        absent.push(source);
+        continue;
+      }
       const target = path.join(destination, `${String(copied.length + 1).padStart(2, '0')}-${name}`);
       fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
       copied.push({ name, source, target, sha256: createHash('sha256').update(fs.readFileSync(target)).digest('hex') });
     }
-    fs.writeFileSync(path.join(destination, 'manifest.json'), JSON.stringify({ createdAt: new Date().toISOString(), xamppRoot: XAMPP_ROOT, files: copied }, null, 2), { flag: 'wx' });
-    return { directory: destination, files: copied };
+    fs.writeFileSync(path.join(destination, 'manifest.json'), JSON.stringify({ createdAt: new Date().toISOString(), xamppRoot: XAMPP_ROOT, files: copied, absent }, null, 2), { flag: 'wx' });
+    return { directory: destination, files: copied, absent };
   } catch (error) {
     fs.rmSync(destination, { recursive: true, force: true });
     throw error;
@@ -2552,6 +2596,46 @@ function createSwitchBackup(files) {
 
 function restoreSwitchBackup(snapshot) {
   for (const file of snapshot.files) writeAtomically(file.source, fs.readFileSync(file.target));
+  for (const file of snapshot.absent || []) fs.rmSync(file, { force: true });
+}
+
+async function stableApacheState() {
+  let service = await inspectXamppService('apache');
+  if (service.managed && [2, 3].includes(service.state)) {
+    try {
+      service = await waitForXamppService('apache', service.state === 2 ? 4 : 1, 30000);
+    } catch {
+      service = await inspectXamppService('apache');
+    }
+  }
+  if (!service.managed || ![1, 4].includes(service.state)) throw new Error(service.reason || 'Estado do Apache indisponível.');
+  return service.state;
+}
+
+async function rollbackPhpActivation(snapshot, serviceName, priorCommand, steps) {
+  const problems = [];
+  // Uma falha na validação ou no UAC ocorre antes de tocar no processo original.
+  if (steps.startAttempted) {
+    try {
+      if (await stableApacheState() === 4) {
+        await runWindowsServiceAction('stop', serviceName);
+        await waitForXamppService('apache', 1, 30000);
+      }
+    } catch (error) { problems.push(`parada: ${error.message}`); }
+  }
+  try { restoreSwitchBackup(snapshot); } catch (error) { problems.push(`arquivos: ${error.message}`); }
+  if (steps.commandAttempted) {
+    try { await changeApacheServiceCommand(priorCommand, serviceName); } catch (error) { problems.push(`serviço: ${error.message}`); }
+  }
+  if (steps.stopAttempted) {
+    try {
+      if (await stableApacheState() === 1) {
+        await runWindowsServiceAction('start', serviceName);
+        await waitForXamppService('apache', 4, 45000);
+      }
+    } catch (error) { problems.push(`retorno do Apache: ${error.message}`); }
+  }
+  return problems.length ? `Reversão incompleta (${problems.join('; ')}). Confira o backup em ${snapshot.directory}.` : `As configurações anteriores foram restauradas. Backup: ${snapshot.directory}.`;
 }
 
 /**
@@ -2679,12 +2763,12 @@ async function switchStandaloneEnvironment(phpRoot, apacheRootChoice = null) {
   }
   const phpFiles = phpApacheFiles(targetRoot);
   if (!phpFiles.module || !phpFiles.ts) throw new Error('Para servir PHP pelo Apache, escolha um build Thread Safe que contenha php*_apache2_4.dll e php*ts.dll.');
-  const phpProbe = await probePhpRuntime(targetRoot, {
+  const expectedPhp = {
     version: php.version,
     threadSafety: php.threadSafety || 'TS',
     architecture: php.architecture || (readPeArchitecture(path.join(targetRoot, 'php.exe')) === 'Win64' ? 'x64' : 'x86')
-  });
-  if (phpProbe.threadSafety !== 'TS') throw new Error('O PHP selecionado não é Thread Safe. O módulo PHP do Apache exige TS.');
+  };
+  if (expectedPhp.threadSafety !== 'TS') throw new Error('O PHP selecionado não é Thread Safe. O módulo PHP do Apache exige TS.');
 
   const currentApache = activeApacheRuntime();
   let apache = currentApache;
@@ -2712,13 +2796,13 @@ async function switchStandaloneEnvironment(phpRoot, apacheRootChoice = null) {
   const service = await inspectXamppService('apache');
   if (!service.managed) throw new Error('Para ativar uma versão, primeiro integre o serviço Apache ao Studio na página Serviços.');
   if (![1, 4].includes(service.state)) throw new Error(`Apache está mudando de estado no Windows (estado ${service.state}); aguarde e tente novamente.`);
-  if (service.state === 1 && await checkPort(80)) throw new Error('A porta 80 está ocupada por um processo fora do serviço Apache integrado.');
+  const apachePort = apachePrimaryPort(generated.text);
+  if (service.state === 1 && await checkPort(apachePort)) throw new Error(`A porta ${apachePort} está ocupada por um processo fora do serviço Apache integrado.`);
   const scConfig = await execFileAsync('sc.exe', ['qc', service.serviceName], { timeout: 5000, windowsHide: true, maxBuffer: 8192 });
   const storedServiceCommand = await readServiceCommand(service.serviceName);
   const priorServiceCommand = quoteServiceCommand(storedServiceCommand || serviceCommandFromOutput(scConfig.stdout));
   if (!priorServiceCommand) throw new Error('Não consegui guardar o comando do serviço Apache para permitir a reversão.');
 
-  const hadEnvironmentState = fs.existsSync(ENVIRONMENT_STATE);
   const oldEnvironment = readEnvironmentState();
   const nextEnvironment = {
     ...oldEnvironment,
@@ -2735,29 +2819,31 @@ async function switchStandaloneEnvironment(phpRoot, apacheRootChoice = null) {
     ['active-environment.json', ENVIRONMENT_STATE],
     ['studio-httpd.conf', generated.config]
   ]);
-  let stopped = false;
-  let serviceChanged = false;
+  const steps = { stopAttempted: false, startAttempted: false, commandAttempted: false };
   const errorLogOffset = apacheErrorLogSize(apache.root);
   try {
-    writeAtomically(generated.config, generated.text);
     writeAtomically(phpIniPath, updatedPhpIni);
+    const phpProbe = await probePhpRuntime(targetRoot, expectedPhp);
+    writeAtomically(generated.config, generated.text);
     const check = await execFileAsync(apache.executable, ['-t', '-d', apache.root, '-f', generated.config], { cwd: apache.root, timeout: 15000, windowsHide: true, maxBuffer: 32 * 1024 });
     if (!/Syntax OK/i.test(`${check.stdout}\n${check.stderr}`)) throw new Error(`A validação do Apache não retornou “Syntax OK”: ${(check.stdout || check.stderr || '').slice(0, 360)}`);
-    if (service.state === 4) {
-      await runWindowsServiceAction('stop', service.serviceName);
-      await waitForXamppService('apache', 1, 30000);
-      stopped = true;
-    }
     writeEnvironmentState(nextEnvironment);
-    await changeApacheServiceCommand(apacheServiceCommand({ ...apache, config: generated.config }, service.serviceName), service.serviceName);
-    serviceChanged = true;
+    const nextCommand = apacheServiceCommand({ ...apache, config: generated.config }, service.serviceName);
+    if (!serviceCommandMatches(storedServiceCommand, nextCommand)) {
+      steps.commandAttempted = true;
+      await changeApacheServiceCommand(nextCommand, service.serviceName);
+    }
     let restarted = false;
     let responding = false;
-    if (stopped) {
+    if (service.state === 4) {
+      steps.stopAttempted = true;
+      await runWindowsServiceAction('stop', service.serviceName);
+      await waitForXamppService('apache', 1, 30000);
+      steps.startAttempted = true;
       await runWindowsServiceAction('start', service.serviceName);
       await waitForXamppService('apache', 4, 45000);
-      responding = await waitForPort(80, 25000);
-      if (!responding) throw new Error('O serviço iniciou, mas a porta 80 não respondeu. O ambiente anterior será restaurado.');
+      responding = await waitForPort(apachePort, 25000);
+      if (!responding) throw new Error(`O serviço iniciou, mas a porta ${apachePort} não respondeu. O ambiente anterior será restaurado.`);
       const extensionFailures = apacheExtensionLoadFailures(apache.root, errorLogOffset);
       if (extensionFailures.length) throw new Error(`O Apache iniciou, mas ${extensionFailures.join(', ')} não carregou no contexto web. O ambiente anterior será restaurado.`);
       restarted = true;
@@ -2771,31 +2857,12 @@ async function switchStandaloneEnvironment(phpRoot, apacheRootChoice = null) {
       responding,
       backup: snapshot.directory,
       mode: 'standalone',
-      warnings: php.missingExtensions || []
+      warnings: (php.missingExtensions || []).filter(item => !phpProbe.modules.some(module =>
+        module.toLowerCase() === String(item.name).toLowerCase()))
     };
   } catch (error) {
-    const rollbackProblems = [];
-    try {
-      const now = await inspectXamppService('apache');
-      if (now.managed && now.state === 4) {
-        await runWindowsServiceAction('stop', service.serviceName);
-        await waitForXamppService('apache', 1, 30000);
-      }
-    } catch (rollbackError) { rollbackProblems.push(`parada: ${rollbackError.message}`); }
-    try { restoreSwitchBackup(snapshot); } catch (rollbackError) { rollbackProblems.push(`arquivos: ${rollbackError.message}`); }
-    if (!hadEnvironmentState) { try { fs.rmSync(ENVIRONMENT_STATE, { force: true }); } catch {} }
-    if (serviceChanged) {
-      try { await changeApacheServiceCommand(priorServiceCommand, service.serviceName); } catch (rollbackError) { rollbackProblems.push(`serviço: ${rollbackError.message}`); }
-    }
-    try {
-      const restored = await inspectXamppService('apache');
-      if (stopped && restored.managed && restored.state === 1) {
-        await runWindowsServiceAction('start', service.serviceName);
-        await waitForXamppService('apache', 4, 45000);
-      }
-    } catch (rollbackError) { rollbackProblems.push(`retorno do Apache: ${rollbackError.message}`); }
-    const rollbackText = rollbackProblems.length ? ` Reversão incompleta (${rollbackProblems.join('; ')}).` : ' As configurações anteriores foram restauradas.';
-    throw new Error(`${error.message}${rollbackText}`);
+    const rollback = await rollbackPhpActivation(snapshot, service.serviceName, priorServiceCommand, steps);
+    throw new Error(`${error.message} ${rollback}`);
   }
 }
 
@@ -2817,8 +2884,11 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
   }
   const phpFiles = phpApacheFiles(targetRoot);
   if (!phpFiles.module || !phpFiles.ts) throw new Error('Para servir PHP pelo Apache, escolha um build Thread Safe que contenha php*_apache2_4.dll e php*ts.dll.');
-  const phpProbe = await probePhpRuntime(targetRoot, { version: php.version, threadSafety: php.threadSafety || 'TS', architecture: php.architecture || (readPeArchitecture(path.join(targetRoot, 'php.exe')) === 'Win64' ? 'x64' : 'x86') });
-  if (phpProbe.threadSafety !== 'TS') throw new Error('O PHP selecionado não é Thread Safe. O módulo PHP do Apache exige TS.');
+  const expectedPhp = {
+    version: php.version, threadSafety: php.threadSafety || 'TS',
+    architecture: php.architecture || (readPeArchitecture(path.join(targetRoot, 'php.exe')) === 'Win64' ? 'x64' : 'x86')
+  };
+  if (expectedPhp.threadSafety !== 'TS') throw new Error('O PHP selecionado não é Thread Safe. O módulo PHP do Apache exige TS.');
 
   const currentApache = activeApacheRuntime();
   let apache = currentApache;
@@ -2839,7 +2909,7 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
   }
   if (!fs.existsSync(apache.executable) || !fs.existsSync(apache.config || path.join(apache.root, 'conf', 'httpd.conf'))) throw new Error('O Apache selecionado não tem executável ou configuração.');
   const apacheConfig = apache.generatedConfig?.config || apache.config;
-  const apacheConfigText = apache.generatedConfig?.text;
+  const apachePort = apachePrimaryPort(apache.generatedConfig?.text || readText(apacheConfig));
   const phpConfig = readText(path.join(targetRoot, 'php.ini'));
   const updatedPhpIni = ensureRequiredPhpExtensions(alignPhpIniPaths(setPhpExtensionDirectory(phpConfig, targetRoot), targetRoot, apache.root), requiredDlls);
   const apacheFiles = apacheConfigFiles(apache.root, apache.config || path.join(apache.root, 'conf', 'httpd.conf'));
@@ -2858,10 +2928,11 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
   };
   properties = updateIniKey(properties, 'php_binary_directory', phpRootIni);
   properties = updateIniKey(properties, 'base_stack_version', `${php.version}-0`);
-  const hadEnvironmentState = fs.existsSync(ENVIRONMENT_STATE);
   const oldEnvironment = readEnvironmentState();
   const baseEnvironment = {
     ...oldEnvironment,
+    phpRoot: targetRoot,
+    phpVersion: php.version,
     originalPhpRoot: oldEnvironment.originalPhpRoot || config.phpRoot,
     originalPhpVersion: oldEnvironment.originalPhpVersion || config.phpVersion || php.version
   };
@@ -2872,8 +2943,7 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
   const service = await inspectXamppService('apache');
   if (!service.managed) throw new Error('Para ativar uma versão, primeiro integre o serviço Apache ao XAMPP Studio na página Serviços.');
   if (![1, 4].includes(service.state)) throw new Error(`Apache está mudando de estado no Windows (${service.state}); aguarde e tente novamente.`);
-  const portActive = await checkPort(80);
-  if (service.state !== 4 && portActive) throw new Error('A porta 80 está ocupada por um processo fora do serviço Apache integrado. Encerre a instância antiga pelo mecanismo que a iniciou e tente novamente; o Studio não encerra processos à força.');
+  if (service.state === 1 && await checkPort(apachePort)) throw new Error(`A porta ${apachePort} está ocupada por um processo fora do serviço Apache integrado. Encerre a instância antiga pelo mecanismo que a iniciou e tente novamente.`);
   const scConfig = await execFileAsync('sc.exe', ['qc', service.serviceName], { timeout: 5000, windowsHide: true, maxBuffer: 8192 });
   const storedServiceCommand = await readServiceCommand(service.serviceName);
   const priorServiceCommand = quoteServiceCommand(storedServiceCommand || serviceCommandFromOutput(scConfig.stdout));
@@ -2884,20 +2954,18 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
     ['httpd-xampp.conf', config.apacheConf],
     ['php.ini-target', path.join(targetRoot, 'php.ini')],
     ['active-environment.json', ENVIRONMENT_STATE],
-    ['xampp-httpd.conf', path.join(XAMPP_ROOT, 'apache', 'conf', 'httpd.conf')]
+    ['xampp-httpd.conf', path.join(XAMPP_ROOT, 'apache', 'conf', 'httpd.conf')],
+    ...(apache.generatedConfig ? [['studio-httpd.conf', apacheConfig]] : [])
   ]);
-  let generatedConfigCreated = false;
-  let stopped = false;
-  let serviceChanged = false;
-  let serviceCommandAttempted = false;
+  const steps = { stopAttempted: false, startAttempted: false, commandAttempted: false };
   const errorLogOffset = apacheErrorLogSize(apache.root);
   try {
+    writeAtomically(path.join(targetRoot, 'php.ini'), updatedPhpIni);
+    const phpProbe = await probePhpRuntime(targetRoot, expectedPhp);
     if (apache.generatedConfig) {
       writeAtomically(apache.generatedConfig.config, apache.generatedConfig.text);
       apache.config = apache.generatedConfig.config;
-      generatedConfigCreated = true;
     }
-    writeAtomically(path.join(targetRoot, 'php.ini'), updatedPhpIni);
     writeAtomically(config.apacheConf, rewrittenPhpApache.text);
     writeAtomically(propertiesPath, properties);
     const check = await execFileAsync(apache.executable, ['-t', '-d', apache.root, '-f', apacheConfig], { cwd: apache.root, timeout: 15000, windowsHide: true, maxBuffer: 32 * 1024 });
@@ -2907,22 +2975,20 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
     // elevação, o servidor continua no ar com a configuração anterior.
     const expectedServiceCommand = apacheServiceCommand({ ...apache, config: apacheConfig });
     if (!serviceCommandMatches(storedServiceCommand, expectedServiceCommand)) {
-      serviceCommandAttempted = true;
+      steps.commandAttempted = true;
       await changeApacheServiceCommand(expectedServiceCommand);
-      serviceChanged = true;
-    }
-    if (service.state === 4) {
-      await runWindowsServiceAction('stop', service.serviceName);
-      await waitForXamppService('apache', 1, 30000);
-      stopped = true;
     }
     let restarted = false;
     let responding = false;
-    if (stopped) {
+    if (service.state === 4) {
+      steps.stopAttempted = true;
+      await runWindowsServiceAction('stop', service.serviceName);
+      await waitForXamppService('apache', 1, 30000);
+      steps.startAttempted = true;
       await runWindowsServiceAction('start', service.serviceName);
       await waitForXamppService('apache', 4, 45000);
-      responding = await waitForPort(80, 25000);
-      if (!responding) throw new Error('O serviço iniciou, mas a porta 80 não respondeu. O XAMPP Studio vai restaurar a versão anterior.');
+      responding = await waitForPort(apachePort, 25000);
+      if (!responding) throw new Error(`O serviço iniciou, mas a porta ${apachePort} não respondeu. O XAMPP Studio vai restaurar a versão anterior.`);
       const extensionFailures = apacheExtensionLoadFailures(apache.root, errorLogOffset);
       if (extensionFailures.length) throw new Error(`O Apache iniciou, mas ${extensionFailures.join(', ')} não carregou no contexto web. O XAMPP Studio vai restaurar a versão anterior.`);
       restarted = true;
@@ -2938,29 +3004,8 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
     const registry = persistDllRegistry(collectDllRegistry());
     return { phpVersion: phpProbe.version, phpRoot: targetRoot, phpModules: phpProbe.modules.length, apacheVersion: apache.version || (await getApacheVersion(apache.executable)), apacheRoot: apache.root, apacheRestarted: restarted, responding, backup: snapshot.directory, migratedExtensions, apacheMissingFiles: missingBundled, warnings, dllRegistryUpdatedAt: registry.updatedAt };
   } catch (error) {
-    const rollbackProblems = [];
-    try {
-      const now = await inspectXamppService('apache');
-      if (now.managed && now.state === 4) {
-        await runWindowsServiceAction('stop', service.serviceName);
-        await waitForXamppService('apache', 1, 30000);
-      }
-    } catch (rollbackError) { rollbackProblems.push(`parada: ${rollbackError.message}`); }
-    try { restoreSwitchBackup(snapshot); } catch (rollbackError) { rollbackProblems.push(`arquivos: ${rollbackError.message}`); }
-    if (!hadEnvironmentState) { try { fs.rmSync(ENVIRONMENT_STATE, { force: true }); } catch {} }
-    if (serviceChanged || serviceCommandAttempted) {
-      try { await changeApacheServiceCommand(priorServiceCommand, service.serviceName); } catch (rollbackError) { rollbackProblems.push(`serviço: ${rollbackError.message}`); }
-    }
-    if (generatedConfigCreated) { try { fs.rmSync(apacheConfig, { force: true }); } catch {} }
-    try {
-      const restored = await inspectXamppService('apache');
-      if (stopped && restored.managed && restored.state === 1) {
-        await runWindowsServiceAction('start', service.serviceName);
-        await waitForXamppService('apache', 4, 45000);
-      }
-    } catch (rollbackError) { rollbackProblems.push(`retorno do Apache: ${rollbackError.message}`); }
-    const rollbackText = rollbackProblems.length ? ` Reversão incompleta (${rollbackProblems.join('; ')}). Confira o backup em ${snapshot.directory}.` : ` As configurações anteriores foram restauradas. Backup: ${snapshot.directory}.`;
-    throw new Error(`${error.message}${rollbackText}`);
+    const rollback = await rollbackPhpActivation(snapshot, service.serviceName, priorServiceCommand, steps);
+    throw new Error(`${error.message} ${rollback}`);
   }
 }
 
@@ -2981,49 +3026,63 @@ async function getMySqlIdentity(executable) {
   }
 }
 
-async function downloadWindowsPhpRuntime(version) {
+async function downloadWindowsPhpRuntime(version, job) {
+  job?.step('Download', 'running', `Consultando o pacote oficial do PHP ${version}.`);
   const catalog = await listWindowsPhpReleases();
   const release = catalog.versions.find(item => item.version === version);
   if (!release) throw new Error('Essa versão não está na lista oficial compatível com o PHP e o Apache atuais. Atualize a lista e tente novamente.');
   const targetRoot = path.join(APP_ROOT, 'runtimes', `php-${release.version}-${release.threadSafety.toLowerCase()}-${release.architecture}`);
   const runtimeParent = path.join(APP_ROOT, 'runtimes');
   if (!isInside(runtimeParent, targetRoot)) throw new Error('Destino do runtime inválido.');
-  if (fs.existsSync(targetRoot)) throw new Error('Esse runtime já existe na pasta runtimes.');
-  const response = await fetch(release.url, { headers: { 'user-agent': 'XAMPP-Studio/0.1' }, signal: AbortSignal.timeout(60000) });
+  if (fs.existsSync(targetRoot)) {
+    const metadataFile = path.join(targetRoot, 'studio-runtime.json');
+    const existing = readText(metadataFile);
+    let metadata;
+    try { metadata = JSON.parse(existing); } catch {}
+    if (!metadata || metadata.sha256 !== release.sha256 || metadata.version !== version) {
+      throw new Error('Já existe outra instalação nessa pasta. Confira a versão em Versões do PHP.');
+    }
+    await probePhpRuntime(targetRoot, release);
+    job?.step('Download', 'succeeded', 'O pacote já está preparado.');
+    return { ...metadata, root: targetRoot, dllCheck: verifyRuntimeDlls(targetRoot), alreadyPrepared: true };
+  }
+  const response = await fetch(release.url, { headers: { 'user-agent': 'XAMPP-Studio/0.1' }, signal: AbortSignal.timeout(300000) });
   if (!response.ok) throw new Error(`O download do PHP falhou (HTTP ${response.status}).`);
   const archive = Buffer.from(await response.arrayBuffer());
   if (archive.length < 5 * 1024 * 1024 || archive.length > 150 * 1024 * 1024) throw new Error('Tamanho inesperado para o pacote PHP; o arquivo não foi extraído.');
   const actualHash = createHash('sha256').update(archive).digest('hex');
   if (actualHash.toLowerCase() !== release.sha256.toLowerCase()) throw new Error('O SHA-256 do pacote não confere com o catálogo oficial do PHP.');
+  job?.step('Download', 'succeeded', 'Pacote oficial recebido e SHA-256 conferido.');
+  job?.progress(55);
+  job?.step('Preparação', 'running', 'Extraindo o PHP e migrando o php.ini.');
   const downloadRoot = path.join(APP_ROOT, 'downloads');
-  const stagingRoot = path.join(runtimeParent, `.staging-${process.pid}-${Date.now()}`);
   fs.mkdirSync(downloadRoot, { recursive: true });
   fs.mkdirSync(runtimeParent, { recursive: true });
-  const archivePath = path.join(downloadRoot, `php-${release.version}-${release.threadSafety.toLowerCase()}-${release.architecture}-${process.pid}-${Date.now()}.zip`);
+  const stagingRoot = fs.mkdtempSync(path.join(runtimeParent, '.staging-php-'));
+  const archivePath = path.join(downloadRoot, `${path.basename(stagingRoot)}.zip`);
   try {
     fs.writeFileSync(archivePath, archive, { flag: 'wx' });
     const listing = await execFileAsync('tar', ['-tf', archivePath], { timeout: 20000, windowsHide: true, maxBuffer: 2 * 1024 * 1024 });
     const entries = listing.stdout.split(/\r?\n/).filter(Boolean);
     if (!entries.length || entries.length > 20000 || entries.some(entry => path.isAbsolute(entry) || entry.split(/[\\/]/).some(part => part === '..'))) throw new Error('O arquivo PHP contém caminhos de extração inválidos.');
-    fs.mkdirSync(stagingRoot, { recursive: false });
     await execFileAsync('tar', ['-xf', archivePath, '-C', stagingRoot], { timeout: 60000, windowsHide: true, maxBuffer: 32 * 1024 });
     if (!fs.existsSync(path.join(stagingRoot, 'php.exe')) || !fs.existsSync(path.join(stagingRoot, 'ext')) || !fs.existsSync(path.join(stagingRoot, 'php.ini-development'))) throw new Error('O pacote oficial não contém a estrutura PHP esperada.');
-    // O runtime ativo pode não estar no disco (estado apontando para um
-    // runtime apagado); as configurações do usuário ficam no php.ini do PHP
-    // original do XAMPP, então ele é a segunda fonte de migração.
-    const environment = readEnvironmentState();
-    const sourceIni = [
-      path.join(getConfig().phpRoot, 'php.ini'),
-      typeof environment.originalPhpRoot === 'string' && environment.originalPhpRoot.trim() ? path.join(environment.originalPhpRoot, 'php.ini') : null
-    ].filter(Boolean).find(file => fs.existsSync(file)) || path.join(getConfig().phpRoot, 'php.ini');
-    const migrated = migratePhpIni(sourceIni, targetRoot, release.version, stagingRoot);
-    fs.writeFileSync(path.join(stagingRoot, 'php.ini'), migrated.ini, { flag: 'wx' });
+    const config = getConfig();
+    const sourceIni = samePath(catalog.baseline.root, config.phpRoot)
+      ? activePhpIni(config) : path.join(catalog.baseline.root, 'php.ini');
+    const migrated = migratePhpIni(sourceIni, stagingRoot, release.version);
+    const preparedIni = path.join(stagingRoot, 'php.ini');
+    fs.writeFileSync(preparedIni, migrated.ini, { flag: 'wx' });
+    job?.step('Preparação', 'succeeded', 'Configuração do PHP de referência migrada.');
+    job?.progress(80);
+    job?.step('Validação', 'running', 'Verificando versão, arquitetura e carregamento das extensões.');
+    await probePhpRuntime(stagingRoot, release);
+    fs.writeFileSync(preparedIni, setPhpExtensionDirectory(migrated.ini, targetRoot));
     const metadata = { version: release.version, threadSafety: release.threadSafety, architecture: release.architecture, compiler: release.compiler, source: release.url, sha256: actualHash, extensions: migrated.extensions, installedAt: new Date().toISOString() };
     fs.writeFileSync(path.join(stagingRoot, 'studio-runtime.json'), JSON.stringify(metadata, null, 2), { flag: 'wx' });
     fs.renameSync(stagingRoot, targetRoot);
-    try { await probePhpRuntime(targetRoot, release); }
-    catch (error) { fs.rmSync(targetRoot, { recursive: true, force: true }); throw error; }
     const dllCheck = verifyRuntimeDlls(targetRoot, currentDllRegistry().dlls);
+    job?.step('Validação', 'succeeded', 'PHP preparado para revisão antes da ativação.');
     return { ...metadata, root: targetRoot, dllCheck };
   } catch (error) {
     fs.rmSync(stagingRoot, { recursive: true, force: true });
@@ -3217,17 +3276,26 @@ async function handler(req, res) {
       if (typeof body.mysqlRoot !== 'string' || !path.isAbsolute(body.mysqlRoot)) return json(res, 400, { error: 'Escolha um runtime MySQL/MariaDB preparado.' });
       return json(res, 200, await switchMySqlRuntime(body.mysqlRoot));
     }
-    if (req.method === 'POST' && url.pathname === '/api/php/install') {
+    if (req.method === 'POST' && (url.pathname === '/api/php/install' || url.pathname === '/api/php/install-async')) {
       const body = await readBody(req);
-      if (typeof body.version !== 'string') return json(res, 400, { error: 'Informe a versão PHP da lista oficial.' });
+      if (typeof body.version !== 'string' || !/^\d+\.\d+\.\d+(?:-\d+)?$/.test(body.version)) return json(res, 400, { error: 'Informe a versão PHP da lista oficial.' });
+      if (url.pathname.endsWith('-async')) {
+        const existing = jobManager.list({ type: 'php.install', limit: 100 }).find(item =>
+          item.payload.version === body.version && ['queued', 'running'].includes(item.status));
+        const job = existing || jobManager.create('php.install', { version: body.version }, context => downloadWindowsPhpRuntime(body.version, context));
+        return json(res, 202, { job });
+      }
       return json(res, 201, await downloadWindowsPhpRuntime(body.version));
     }
-    if (req.method === 'POST' && url.pathname === '/api/environment/activate') {
+    if (req.method === 'POST' && (url.pathname === '/api/environment/activate' || url.pathname === '/api/environment/switch')) {
       const body = await readBody(req);
       if (typeof body.phpRoot !== 'string' || !path.isAbsolute(body.phpRoot)) return json(res, 400, { error: 'Escolha um runtime PHP instalado.' });
-      if (body.apacheRoot !== undefined && body.apacheRoot !== null && (typeof body.apacheRoot !== 'string' || !path.isAbsolute(body.apacheRoot))) return json(res, 400, { error: 'Escolha um runtime Apache preparado.' });
-      const mode = body.mode === 'legacy' ? 'legacy' : 'standalone';
-      if (mode === 'standalone') {
+      if (body.apacheRoot != null && (typeof body.apacheRoot !== 'string' || !path.isAbsolute(body.apacheRoot))) return json(res, 400, { error: 'Escolha um runtime Apache preparado.' });
+      if (phpActivationInProgress) return json(res, 409, { error: 'Já existe uma troca de PHP em andamento. Aguarde a conclusão.' });
+      phpActivationInProgress = true;
+      try {
+        const standalone = body.mode === 'standalone' || (url.pathname === '/api/environment/activate' && body.mode !== 'legacy');
+        if (!standalone) return json(res, 200, await switchEnvironment(body.phpRoot, body.apacheRoot || null));
         const previous = readEnvironmentState();
         writeEnvironmentState(await buildStandaloneModeState(previous));
         try {
@@ -3236,24 +3304,9 @@ async function handler(req, res) {
           writeEnvironmentState(previous);
           throw error;
         }
+      } finally {
+        phpActivationInProgress = false;
       }
-      return json(res, 200, await switchEnvironment(body.phpRoot, body.apacheRoot || null));
-    }
-    if (req.method === 'POST' && url.pathname === '/api/environment/switch') {
-      const body = await readBody(req);
-      if (typeof body.phpRoot !== 'string' || !path.isAbsolute(body.phpRoot)) return json(res, 400, { error: 'Escolha um runtime PHP instalado.' });
-      if (body.apacheRoot !== undefined && body.apacheRoot !== null && typeof body.apacheRoot !== 'string') return json(res, 400, { error: 'Escolha um runtime Apache preparado.' });
-      if (body.mode === 'standalone') {
-        const previous = readEnvironmentState();
-        writeEnvironmentState(await buildStandaloneModeState(previous));
-        try {
-          return json(res, 200, await switchStandaloneEnvironment(body.phpRoot, body.apacheRoot || null));
-        } catch (error) {
-          writeEnvironmentState(previous);
-          throw error;
-        }
-      }
-      return json(res, 200, await switchEnvironment(body.phpRoot, body.apacheRoot || null));
     }
     if (req.method === 'GET' && url.pathname === '/api/php/settings') return json(res, 200, readPhpSettings(url.searchParams.get('phpRoot')));
     if (req.method === 'POST' && url.pathname === '/api/php/settings') {

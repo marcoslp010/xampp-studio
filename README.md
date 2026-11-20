@@ -49,6 +49,13 @@ No PowerShell, execute `./start.ps1` e abra `http://127.0.0.1:43197`. Não abra 
 
 Para usar outra instalação, defina `$env:XAMPP_ROOT='D:\xampp'` antes de iniciar. O agente só aceita conexões de loopback local.
 
+### Atualizar o PHP de um servidor Windows
+
+1. Na máquina que hospeda o XAMPP, extraia o Studio fora da pasta pública do Apache, por exemplo em `C:\Ferramentas\xampp-studio`. Com Node.js 20 ou superior instalado, execute `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start.ps1` nessa pasta. Abra o endereço que o terminal mostrar.
+2. Em **Versões do PHP → Adicionar versão**, o Studio mostra primeiro a atualização da série em uso, quando disponível. Para continuar na série 8.2, escolha o pacote **8.2.x**. Clique em **Baixar e adicionar → Baixar e preparar**. O painel acompanha o download, a conferência do SHA-256 e o teste das extensões.
+3. Abra **Configurar** na versão preparada. Confira as DLLs e a compatibilidade com o Apache. Caso falte uma extensão exigida pela aplicação, instale a compilação compatível na aba **Extensões**. Se o painel solicitar a integração do Apache, use **Serviços → Integrar ao Studio**.
+4. Em uma janela de manutenção, clique em **Ativar esta versão → Validar e usar PHP**. O Studio guarda um backup, valida a configuração e reinicia o Apache se ele já estiver em execução. Após a confirmação, confira a versão no painel e abra uma página PHP do seu site.
+
 ## Serviços
 
 Na primeira utilização, use **Integrar ao Studio** na página **Serviços** ou diretamente nos módulos **Apache** e **MySQL/MariaDB**. A ação registra o executável e a configuração selecionados como serviços do Windows (`Apache2.4` e `mysql` no modo legado). Quando o agente não está elevado, o Windows exibe um aviso UAC; aceitá-lo executa somente a operação confirmada na interface.

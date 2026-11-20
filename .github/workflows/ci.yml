@@ -23,15 +23,8 @@ jobs:
       - name: Dependências de desenvolvimento (Tailwind)
         run: npm ci
 
-      - name: Suíte principal (PE, compatibilidade, comando de serviço)
-        run: node tests/run-tests.cjs
-
-      - name: Destinos Admin
-        run: node tests/admin-targets.cjs
-
-      - name: Segurança do start.ps1
-        shell: pwsh
-        run: ./tests/start-safety.ps1
+      - name: Testes do Studio e da atualização do PHP
+        run: npm test
 
       - name: Verificar sintaxe do server e das libs
         shell: pwsh

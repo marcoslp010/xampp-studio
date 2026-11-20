@@ -131,6 +131,10 @@ function apacheCompatibilityHtml(runtime){
   const details=conflicts.map(item=>`${item.extension}: ${(item.missing||[]).join(', ')} (${item.dll})`).join(' · ');
   return `<span class="result-chip blocked" title="${escapeHtml(details||compatibility.summary||'Incompatível com o Apache atual')}">⚠ Incompatível com o Apache</span><span class="extension-warning">${escapeHtml(details||'Exige uma versão mais nova do Apache')}</span>`;
 }
+function isCurrentPhp(runtime) {
+  const engine = state.liveStatus?.phpCli?.version;
+  return Boolean(runtime.current && engine && String(runtime.version).replace(/-\d+$/, '') === engine);
+}
 function renderVersions(){
   $('#activeVersion').textContent=state.liveStatus?.phpCli?.version||'—';
   const list=$('#versionList');
@@ -138,9 +142,8 @@ function renderVersions(){
     list.innerHTML='<div class="empty-state"><strong>Agente local desconectado</strong><p>Conecte o agente para consultar os runtimes instalados. Os dados salvos neste navegador foram preservados.</p></div>';
     return;
   }
-  const liveVersion=state.liveStatus?.phpCli?.version;
   list.innerHTML=state.versions.map(v=>{
-    const current=Boolean(liveVersion&&v.version===liveVersion&&v.current);
+    const current=isCurrentPhp(v);
     return `<article class="version-card ${current?'current-version':''}" ${v.root?`data-runtime-root="${escapeHtml(v.root)}"`:''}><div class="version-card-main"><span class="php-tile">php</span><div><strong>PHP ${escapeHtml(v.version)}</strong><small>${escapeHtml(v.source||v.note||'Runtime disponível')}</small><code class="runtime-card-path">${escapeHtml(v.root||'')}</code></div></div><div class="version-badges"><span class="${current?'active-badge':''}">${current?'● Em uso':escapeHtml(v.channel||'Preparado')}</span><span>${escapeHtml(v.threadSafety||v.ts||'—')}</span><span>${escapeHtml(v.architecture||v.arch||'—')}</span></div><span class="version-footnote">${current?'PHP em uso neste ambiente':'DLLs e configurações por versão'}</span>${dllStatusHtml(v.dllCheck,v.root,v.version)}${apacheCompatibilityHtml(v)}${current?'<span class="result-chip done">ATUAL</span>':''}${v.root?`<div class="version-card-actions"><button class="outline-button small-button runtime-config" data-root="${escapeHtml(v.root)}" type="button">Configurar</button><button class="outline-button small-button runtime-dlls" data-root="${escapeHtml(v.root)}" type="button"><span aria-hidden="true">⧉</span> Extensões</button></div>`:''}${(v.missingExtensions||[]).length?`<span class="extension-warning">${v.missingExtensions.length} extensão(ões) pendente(s)</span>`:''}</article>`;
   }).join('');
   $$('.runtime-config').forEach(b=>b.addEventListener('click',()=>openVersionDetail(b.dataset.root)));
@@ -186,7 +189,7 @@ function renderVersionDetail(){
   state.dllVersionRoot=runtime.root;
   const check=runtime.dllCheck||{missing:[],present:0,required:0};
   const missing=check.missing||[];
-  const current=Boolean(runtime.current&&state.liveStatus?.phpCli?.version===runtime.version);
+  const current=isCurrentPhp(runtime);
   const label=current?'Em uso':missing.length?'Faltam DLLs':'Disponível';
   const architecture=runtime.architecture||'A consultar';
   const mode=runtime.threadSafety||'A consultar';
@@ -226,7 +229,7 @@ async function showPhpActivation(runtime){
     const button=$('#confirmEnvironmentSwitch');button.disabled=true;button.textContent='Validando configuração…';
     try{
       const apacheRoot=$('#switchApache').value||null;
-      const result=await requestApi('/api/environment/switch',{method:'POST',body:JSON.stringify({phpRoot:runtime.root,apacheRoot})});
+      const result=await requestApi('/api/environment/switch',{method:'POST',timeout:0,body:JSON.stringify({phpRoot:runtime.root,apacheRoot})});
       state.dllVersionRoot=null;
       closeModal();
       const warnings=result.warnings?.length?` · atenção: ${result.warnings.length} extensão(ões) indisponível(is)`:'';
@@ -239,26 +242,41 @@ async function showPhpActivation(runtime){
 }
 $('#quickSwitch').addEventListener('click',()=>navigate('php'));
 $('#addVersion').addEventListener('click',async()=>{
-  showModal('BUILDS OFICIAIS PARA WINDOWS',`<h2>Adicionar versão do PHP</h2><p class="modal-copy">Lista apenas versões acima da atual, com a mesma arquitetura e modo TS/NTS do seu PHP.</p><div class="modal-note">O ZIP oficial será validado por SHA-256. O Studio prepara o runtime, migra as extensões que existirem e mostra o que ficou pendente antes de oferecer a troca.</div><div id="phpReleaseResults" class="release-list"><div class="catalog-loading">Consultando windows.php.net…</div></div><div class="modal-actions"><button class="outline-button" id="cancelAction">Fechar</button></div>`);
+  showModal('BUILDS OFICIAIS PARA WINDOWS',`<h2>Adicionar versão do PHP</h2><p class="modal-copy">Lista apenas versões acima da atual, com a mesma arquitetura e modo TS/NTS do seu PHP.</p><div class="modal-note">O ZIP oficial será validado por SHA-256. O Studio prepara o runtime, migra as extensões que existirem e mostra o que ficou pendente antes de oferecer a troca.</div><div id="phpReleaseResults" class="release-list"><div class="catalog-loading">Consultando o catálogo oficial…</div></div><div class="modal-actions"><button class="outline-button" id="cancelAction">Fechar</button></div>`);
   $('#cancelAction').onclick=closeModal;
   const list=$('#phpReleaseResults');
   if(!state.apiAvailable){list.innerHTML='<div class="modal-note">Inicie o agente com start.ps1 para consultar e baixar builds oficiais.</div>';return}
   try{
     const catalog=await requestApi('/api/php/releases');
     const catalogContext=`<div class="catalog-context">PHP de referência ${escapeHtml(catalog.currentVersion)}${catalog.warning?` · <strong>${escapeHtml(catalog.warning)}</strong>`:''}</div>`;
-    list.innerHTML=catalogContext+(catalog.versions.map(item=>`<article class="release-card"><div><strong>PHP ${escapeHtml(item.version)}</strong><small>${escapeHtml(item.threadSafety)} · ${escapeHtml(item.architecture)} · ${escapeHtml(item.compiler||'build oficial')} · ${escapeHtml(item.size)}</small><small>Windows PHP oficial · SHA-256 será conferido</small></div><button class="outline-button small-button download-php" data-version="${escapeHtml(item.version)}">Baixar e adicionar</button></article>`).join('')||'<div class="modal-note">Não encontrei versões superiores compatíveis com o runtime atual.</div>');
+    const branch=catalog.currentVersion.split('.').slice(0,2).join('.');
+    const versions=[...catalog.versions].sort((a,b)=>Number(b.branch===branch)-Number(a.branch===branch));
+    list.innerHTML=catalogContext+(versions.map(item=>`<article class="release-card"><div><strong>PHP ${escapeHtml(item.version)}</strong><small>${escapeHtml(item.threadSafety)} · ${escapeHtml(item.architecture)} · ${escapeHtml(item.compiler||'build oficial')} · ${escapeHtml(item.size)}</small><small>${item.branch===branch?'Atualização da série '+escapeHtml(branch):'Outra série do PHP'} · SHA-256 oficial</small></div><button class="outline-button small-button download-php" data-version="${escapeHtml(item.version)}">Baixar e adicionar</button></article>`).join('')||'<div class="modal-note">Não encontrei versões superiores compatíveis com o runtime atual.</div>');
     list.dataset.checked='true';
   }catch(error){list.innerHTML=`<div class="modal-note">${escapeHtml(error.message)}</div>`}
 });
 $('#modalContent').addEventListener('click',async event=>{
   const download=event.target.closest('.download-php');if(!download)return;
   const version=download.dataset.version;
-  showModal('CONFIRMAR DOWNLOAD OFICIAL',`<h2>Adicionar PHP ${escapeHtml(version)}?</h2><p class="modal-copy">O pacote será baixado de windows.php.net, validado pelo SHA-256 publicado pelo PHP e extraído como runtime isolado em <code>runtimes/</code>.</p><div class="modal-note">O Studio migra configurações e ativa somente as extensões que vêm no pacote oficial. DLLs externas sem build compatível ficam listadas e bloqueiam a troca até serem instaladas nesse runtime. A versão atual continua disponível para voltar.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Voltar</button><button class="primary-button" id="confirmPhpDownload">Baixar e preparar</button></div>`);
+  showModal('CONFIRMAR DOWNLOAD OFICIAL',`<h2>Adicionar PHP ${escapeHtml(version)}?</h2><p class="modal-copy">O pacote será baixado de downloads.php.net, validado pelo SHA-256 publicado pelo PHP e extraído como runtime isolado em <code>runtimes/</code>.</p><div class="modal-note">O Studio migra configurações e ativa somente as extensões que vêm no pacote oficial. DLLs externas sem build compatível ficam listadas e bloqueiam a troca até serem instaladas nesse runtime. A versão atual continua disponível para voltar.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Voltar</button><button class="primary-button" id="confirmPhpDownload">Baixar e preparar</button></div>`);
   $('#cancelAction').onclick=closeModal;
   $('#confirmPhpDownload').onclick=async()=>{
     const button=$('#confirmPhpDownload');button.disabled=true;button.textContent='Baixando e validando…';
-    try{const installed=await requestApi('/api/php/install',{method:'POST',body:JSON.stringify({version})});const missing=installed.extensions?.missing||[];const dllMissing=installed.dllCheck?.missing||[];recordActivity('Runtime PHP preparado',`PHP ${installed.version} · ${installed.threadSafety} · ${installed.architecture} · extensões migradas ${installed.extensions?.migrated?.length||0} · pendentes ${missing.length} · DLLs ausentes ${dllMissing.length} · SHA-256 conferido`,dllMissing.length?'Bloqueado':missing.length?'Aviso':'Concluído');closeModal();await loadLiveStatus();toast(dllMissing.length?`PHP ${installed.version} preparado, mas a troca está bloqueada: faltam ${dllMissing.map(item=>item.dll).join(', ')}.`:(missing.length?`PHP ${installed.version} preparado; ${missing.length} extensão(ões) não têm DLL compatível e ficaram desativadas. Veja os detalhes da versão.`:`PHP ${installed.version} preparado com as extensões disponíveis no pacote oficial. Abra a versão e use “Ativar esta versão” quando quiser trocar.`),Boolean(dllMissing.length||missing.length))}
-    catch(error){button.disabled=false;button.textContent='Tentar novamente';$('#modalContent').insertAdjacentHTML('beforeend',`<div class="modal-note">${escapeHtml(error.message)}</div>`)}
+    try {
+      const installed = await startAsyncJob('/api/php/install-async', {version}, `Preparando PHP ${version}`, {closeOnSuccess:true});
+      const missing = installed.dllCheck?.missing || [];
+      recordActivity('Runtime PHP preparado', `PHP ${installed.version} · ${installed.threadSafety} · ${installed.architecture}`, missing.length ? 'Bloqueado' : 'Concluído');
+      await loadLiveStatus();
+      if (missing.length) {
+        toast(`PHP ${installed.version} preparado. Antes de ativar, instale as DLLs ausentes: ${missing.map(item=>item.dll).join(', ')}.`, true);
+      } else {
+        toast(`PHP ${installed.version} preparado. Abra Configurar e selecione “Ativar esta versão” para trocar.`);
+      }
+    } catch(error){
+      button.disabled=false;
+      button.textContent='Tentar novamente';
+      toast(error.message,true);
+    }
   };
 });
 async function runPeclDownload(dataset){
@@ -485,7 +503,7 @@ async function loadLiveStatus(){
     const live=state.liveVersions.map(v=>({...v,channel:v.current&&phpAvailable?'Em uso':'Instalada',arch:v.architecture||status.phpCli?.architecture||'desconhecida',ts:v.threadSafety||status.phpCli?.threadSafety||'desconhecido',note:v.current&&phpAvailable?'PHP carregado pelo XAMPP':`Runtime em ${v.root}`,size:'local'}));
     state.versions=live;renderVersions();renderVersionDetail();if(state.dllRegistry)renderDllRegistry();
     const currentVersion=phpAvailable?status.phpCli.version:null;
-    const alternatives=installedVersions.filter(v=>v.version!==currentVersion);
+    const alternatives=installedVersions.filter(v=>!isCurrentPhp(v));
     $('#phpVersionCount').textContent=String(installedVersions.length);
     $('#phpVersionCenter').innerHTML=currentVersion?`${escapeHtml(currentVersion)} <small>ATUAL</small>`:'—';
     $('#phpVersionLeft').textContent=alternatives[0]?.version||'sem outras';
@@ -899,9 +917,10 @@ function jobProgressHtml(job){
   return `<div class="job-progress"><div class="job-progress-head"><strong>${job.status==='succeeded'?'Operação concluída':job.status==='failed'?'Operação interrompida':'Processando em segundo plano'}</strong><span>${Math.max(0,Math.min(100,Number(job.progress)||0))}%</span></div><div class="job-progress-track"><i style="width:${Math.max(0,Math.min(100,Number(job.progress)||0))}%"></i></div><div class="job-step-list">${steps}</div></div>`;
 }
 
-async function monitorJob(jobId,title='Operação em andamento'){
+async function monitorJob(jobId,title='Operação em andamento',{closeOnSuccess=false}={}){
   showModal('OPERAÇÃO ASSÍNCRONA',`<h2>${escapeHtml(title)}</h2><p class="modal-copy">O agente continua trabalhando depois que esta tela é aberta. O progresso é atualizado sem bloquear a interface.</p><div id="jobMonitor" role="status" aria-live="polite">${jobProgressHtml({status:'queued',progress:0,steps:[]})}</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Fechar</button></div>`);
   $('#cancelAction').onclick=closeModal;
+  const monitor=$('#jobMonitor');
   let failures=0;
   for(;;){
     let job;
@@ -913,23 +932,24 @@ async function monitorJob(jobId,title='Operação em andamento'){
     }catch(error){
       if(error.status>=400&&error.status<500&&error.status!==429)throw new Error(`Não foi possível acompanhar a operação: ${error.message}`);
       failures++;
-      const monitor=modal.open?$('#jobMonitor'):null;
-      if(monitor)monitor.innerHTML=`<div class="modal-note">${escapeHtml(error.message)} Tentando novamente…</div>`;
+      if(modal.open&&monitor.isConnected)monitor.innerHTML=`<div class="modal-note">${escapeHtml(error.message)} Tentando novamente…</div>`;
       if(failures>=4)throw new Error(`Não foi possível acompanhar a operação: ${error.message}`);
       await new Promise(resolve=>setTimeout(resolve,Math.min(3000,700*failures)));
       continue;
     }
     state.activeJobs.set(job.id,job);
-    const monitor=modal.open?$('#jobMonitor'):null;
-    if(monitor)monitor.innerHTML=jobProgressHtml(job);
+    if(modal.open&&monitor.isConnected){
+      monitor.innerHTML=jobProgressHtml(job);
+      if(closeOnSuccess&&job.status==='succeeded')closeModal();
+    }
     if(job.status==='succeeded'||job.status==='failed')return job;
     await new Promise(resolve=>setTimeout(resolve,700));
   }
 }
 
-async function startAsyncJob(path,body,title){
+async function startAsyncJob(path,body,title,options){
   const response=await requestApi(path,{method:'POST',body:JSON.stringify(body)});
-  const job=await monitorJob(response.job.id,title);
+  const job=await monitorJob(response.job.id,title,options);
   if(job.status==='failed')throw new Error(job.error||'A operação assíncrona falhou.');
   return job.result;
 }
