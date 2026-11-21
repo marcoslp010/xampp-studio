@@ -106,13 +106,13 @@
             </article>
           </div>
 
-          <section class="activity-section"><div class="section-heading"><div><div class="eyebrow">REGISTRO DO AMBIENTE</div><h2>Atividade recente</h2></div><button class="text-action" data-goto="activity">Ver histórico completo <span>→</span></button></div><div class="activity-table" role="table" aria-label="Atividade recente"><div class="activity-row activity-head" role="row"><span role="columnheader">EVENTO</span><span role="columnheader">DETALHES</span><span role="columnheader">QUANDO</span><span role="columnheader">ESTADO</span></div><div class="activity-row" role="row"><span class="event-cell" role="cell"><i class="event-icon check-event" aria-hidden="true">·</i> Nenhuma ação registrada</span><span class="detail-cell" role="cell">Os backups aparecerão aqui após serem criados.</span><span class="time-cell" role="cell">—</span><span class="result-chip done" role="cell">—</span></div></div></section>
+          <section class="activity-section"><div class="section-heading"><div><div class="eyebrow">REGISTRO DO AMBIENTE</div><h2>Atividade recente</h2></div><button class="text-action" data-goto="activity">Ver histórico completo <span>→</span></button></div><div class="activity-table" data-activity-list="recent"></div></section>
           <footer class="page-footer"><span>XAMPP Studio · Gerenciamento local</span><span>v0.1.0 <i>·</i> Configurações com backup</span></footer>
         </section>
 
         <section class="page" id="page-php">
           <div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> RUNTIMES ISOLADOS</div><h1>Versões do <em>PHP.</em></h1><p class="heading-copy">Baixe builds oficiais, abra a configuração de cada versão e troque com validação.</p></div><button class="primary-button" id="addVersion"><span aria-hidden="true">＋</span> Adicionar versão</button></div>
-          <div class="notice-card"><span class="notice-symbol">↻</span><div><strong>Escolha uma versão para trabalhar.</strong><p>Abra uma versão para buscar DLLs e editar o php.ini. Ativar o PHP é uma ação separada, com backup e validação.</p></div><span class="notice-chip">BACKUP + VALIDAÇÃO</span></div>
+          <div class="notice-card"><span class="notice-symbol">↻</span><div><strong>Escolha uma versão para trabalhar.</strong><p>Abra uma versão para buscar DLLs e editar o php.ini. Ativar o PHP é uma ação separada, com backup e validação.</p></div></div>
           <div class="version-list" id="versionList"></div>
           <div class="catalog-context php-version-hint">Selecione uma versão para configurar DLLs, variáveis e ativação.</div>
         </section>
@@ -230,9 +230,87 @@
         <section class="page" id="page-performance"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> AJUSTE DE RECURSOS</div><h1>Performance <em>equilibrada.</em></h1><p class="heading-copy">Distribua a memória e a concorrência entre PHP/Apache e MySQL, reservando RAM para o Windows.</p></div><button class="primary-button" id="applyPerformance">Aplicar ajustes</button></div><div class="notice-card green-notice"><span class="notice-symbol">i</span><div><strong>20% da memória estimada fica reservada para o Windows.</strong><p>Os controles ajustam concorrência, memória por execução PHP, cache do banco e conexões. Eles não impõem um teto exato de CPU por serviço.</p></div><span class="notice-chip" id="performanceHardware">LENDO COMPUTADOR</span></div><div class="performance-layout"><article class="panel performance-panel"><div class="panel-top"><div class="panel-title">DIVISÃO DO ORÇAMENTO DE MEMÓRIA DOS SERVIÇOS</div><span class="stable-badge">RESERVA DO WINDOWS · 20% RAM</span></div><p class="panel-help">Os dois controles somam 100% do orçamento restante. Ao mover um, o outro se recalibra automaticamente.</p><div class="resource-slider"><div class="slider-heading"><span><i class="service-square apache">A</i><strong>PHP + Apache</strong></span><output id="performanceApacheValue">50%</output></div><input id="performanceApache" type="range" min="20" max="80" step="1" value="50" aria-label="Orçamento para PHP e Apache"><div class="range-labels"><span>20%</span><span>50%</span><span>80%</span></div><small>Controla quantos pedidos podem ser atendidos ao mesmo tempo e o limite de memória do PHP.</small></div><div class="resource-slider"><div class="slider-heading"><span><i class="service-square mysql">M</i><strong>MySQL / MariaDB</strong></span><output id="performanceMysqlValue">50%</output></div><input id="performanceMysql" type="range" min="20" max="80" step="1" value="50" aria-label="Orçamento para MySQL"><div class="range-labels"><span>20%</span><span>50%</span><span>80%</span></div><small>Ajusta o cache do banco e as conexões simultâneas; outros buffers do MySQL variam conforme o projeto.</small></div><div class="resource-summary" id="performanceSummary">Conecte o agente para calcular os limites sugeridos.</div></article><aside class="panel performance-explainer"><div class="panel-title">O QUE SERÁ AJUSTADO</div><div class="checklist"><div><i>↗</i> Apache: limite de requisições simultâneas</div><div><i>↗</i> PHP: memória máxima por execução</div><div><i>↗</i> MySQL: cache e conexões simultâneas</div><div><i>✓</i> Arquivos de configuração terão backup</div></div><div class="modal-note">As mudanças só entram em vigor após validar os arquivos e reiniciar os serviços gerenciados. O Studio reverte os arquivos se a validação falhar.</div></aside></div></section>
 
 
-        <section class="page" id="page-firewall"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> PROTEÇÃO DO AMBIENTE</div><h1>Firewall <em>local.</em></h1><p class="heading-copy">Consulte requisições registradas, bloqueie endereços e revise o acesso via Cloudflare.</p></div><div class="firewall-heading-actions"><button class="outline-button" id="refreshFirewall">Atualizar registros</button><button class="primary-button" id="blockIpButton">Bloquear IP</button></div></div><div class="notice-card" id="firewallNotice"><span class="notice-symbol">i</span><div><strong>Os registros dependem da configuração atual do Apache e do Windows.</strong><p>O log do Apache mostra IP, método e caminho. A captura do corpo é opcional e filtra dados sensíveis; “Raw” mostra a linha original filtrada.</p></div></div><article class="panel cloudflare-panel"><div class="panel-top"><div><div class="panel-title">ACESSO AO SITE POR CLOUDFLARE</div><p class="panel-help">Permite conexões nas portas 80 e 443 apenas das faixas oficiais da Cloudflare, após revisar conflitos existentes.</p></div><button class="outline-button" id="cloudflareAction">Verificar configuração</button></div><div class="cloudflare-state" id="cloudflareState">Ainda não verificado</div></article><article class="panel body-capture-panel"><div class="panel-top"><div><div class="panel-title">CAPTURA FILTRADA DO CORPO · PHP</div><p class="panel-help">Opcional. Registra JSON e formulários até 16 KB, oculta campos de senha e token, e ignora uploads. A captura se aplica aos sites PHP deste XAMPP.</p></div><button class="outline-button" id="bodyCaptureAction">Verificar captura</button></div><div class="cloudflare-state" id="bodyCaptureState">Desativada</div></article><div class="section-heading firewall-section-heading"><div><div class="eyebrow">TRÁFEGO RECENTE</div><h2>Registros de acesso</h2></div><label class="search-box"><span>⌕</span><input aria-label="Filtrar registros de acesso" id="firewallSearch" type="search" placeholder="Buscar IP, método ou caminho" autocomplete="off"></label></div><div class="firewall-log-list" id="firewallLogList"><div class="empty-state"><strong>Conecte o agente local</strong><p>O XAMPP Studio mostrará os registros já existentes no Apache e no Firewall do Windows.</p></div></div><div class="section-heading firewall-section-heading blocked-heading"><div><div class="eyebrow">REGRAS CRIADAS PELO STUDIO</div><h2>IPs bloqueados</h2></div></div><div class="blocked-ip-list" id="blockedIpList"><div class="catalog-context">Nenhum IP bloqueado por este Studio.</div></div></section>
+        <section class="page" id="page-firewall">
+          <div class="page-heading compact-heading">
+            <div><h1>Firewall</h1><p class="heading-copy">Acompanhe o tráfego e gerencie bloqueios de IP.</p></div>
+            <button class="primary-button" id="blockIpButton" type="button">Bloquear IP</button>
+          </div>
+          <div class="firewall-layout">
+            <section class="panel firewall-traffic" aria-labelledby="firewallLogTitle">
+              <div class="firewall-toolbar">
+                <div><h2 id="firewallLogTitle">Registros de acesso</h2><p id="firewallLiveStatus" class="panel-help">Aguardando a primeira leitura…</p></div>
+                <div class="firewall-heading-actions">
+                  <button class="outline-button" id="refreshFirewall" type="button">Atualizar</button>
+                  <button class="outline-button" id="openFirewallLogs" type="button" disabled>Abrir no editor</button>
+                </div>
+              </div>
+              <form class="firewall-filters" id="firewallFilters" role="search" aria-label="Filtrar registros do Firewall">
+                <div class="firewall-filter-bar">
+                  <label class="search-box"><span aria-hidden="true">⌕</span><input aria-label="Buscar nos registros" id="firewallSearch" name="q" type="search" placeholder="Buscar IP, caminho ou status…" maxlength="200" autocomplete="off" spellcheck="false"></label>
+                  <select id="firewallSource" name="source" aria-label="Fonte dos registros">
+                    <option value="">Todas as fontes</option><option value="apache">Apache</option><option value="windows">Firewall do Windows</option><option value="php">PHP · corpo filtrado</option>
+                  </select>
+                </div>
+                <details class="firewall-more-filters" id="firewallMoreFilters">
+                  <summary>Mais filtros <span id="firewallFilterCount" class="firewall-result" hidden></span></summary>
+                  <div class="firewall-filter-fields">
+                    <label>IP de origem<input type="text" id="firewallIpFilter" name="ip" placeholder="Ex. 192.0.2.10" maxlength="64" autocomplete="off" spellcheck="false"></label>
+                    <label>Método ou protocolo<select id="firewallMethod" name="method">
+                      <option value="">Todos</option><optgroup label="HTTP"><option>GET</option><option>POST</option><option>HEAD</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>OPTIONS</option><option>CONNECT</option><option>TRACE</option></optgroup><optgroup label="Rede"><option>TCP</option><option>UDP</option><option>ICMP</option><option>ICMPV6</option></optgroup>
+                    </select></label>
+                    <label>Resultado<select id="firewallResult" name="status">
+                      <option value="">Todos</option><optgroup label="HTTP"><option value="2xx">2xx · Sucesso</option><option value="3xx">3xx · Redirecionamento</option><option value="4xx">4xx · Erro do cliente</option><option value="5xx">5xx · Erro do servidor</option><option value="401">401 · Sem autenticação</option><option value="403">403 · Proibido</option><option value="404">404 · Não encontrado</option><option value="429">429 · Limite atingido</option></optgroup><optgroup label="Firewall do Windows"><option value="ALLOW">Conexão permitida</option><option value="DROP">Conexão descartada</option></optgroup><option value="MISSING">Sem resultado no log</option>
+                    </select></label>
+                    <label>Período<select id="firewallPeriod" name="period">
+                      <option value="">Todos os registros lidos</option><option value="15m">Últimos 15 minutos</option><option value="1h">Última hora</option><option value="24h">Últimas 24 horas</option><option value="7d">Últimos 7 dias</option><option value="custom">Escolher datas</option>
+                    </select></label>
+                    <fieldset class="firewall-date-range" id="firewallDateRange" disabled hidden>
+                      <legend class="sr-only">Datas no horário do navegador</legend>
+                      <label>Data inicial<input type="date" id="firewallFrom" name="from"></label>
+                      <label>Data final<input type="date" id="firewallTo" name="to"></label>
+                    </fieldset>
+                    <label class="firewall-live-toggle"><input type="checkbox" name="blocked" value="1"> Apenas IPs bloqueados pelo Studio</label>
+                  </div>
+                </details>
+                <div class="firewall-filter-bar firewall-filter-options">
+                  <label class="firewall-live-toggle"><input id="firewallLive" type="checkbox" checked> Atualizar automaticamente</label>
+                  <button class="text-action" id="clearFirewallFilters" type="button" disabled>Limpar filtros</button>
+                </div>
+              </form>
+              <p id="firewallLogError" class="firewall-log-error" role="status" hidden></p>
+              <nav class="firewall-pagination" aria-label="Paginação dos registros">
+                <span id="firewallPageCount" aria-live="polite">—</span>
+                <div><button class="outline-button" id="firewallPrev" type="button" disabled>Anterior</button><button class="outline-button" id="firewallNext" type="button" disabled>Próxima</button></div>
+              </nav>
+              <div class="firewall-log-list" id="firewallLogList" role="region" aria-label="Registros desta página" tabindex="0"><div class="empty-state"><strong>Aguardando o agente local</strong></div></div>
+              <details class="firewall-files" id="firewallNotice">
+                <summary>Arquivos e estado da leitura</summary>
+                <p id="firewallSourceNote" class="panel-help">O painel lê até 2.000 registros recentes e 2 MB por arquivo.</p>
+                <ul id="firewallFiles"></ul>
+              </details>
+            </section>
+            <aside class="firewall-settings" aria-label="Configurações de proteção">
+              <article class="panel">
+                <h2>Acesso via Cloudflare</h2>
+                <p class="panel-help">Restringe conexões nas portas 80 e 443 às faixas oficiais da Cloudflare.</p>
+                <p class="cloudflare-state" id="cloudflareState">Ainda não verificado</p>
+                <button class="outline-button" id="cloudflareAction" type="button">Verificar configuração</button>
+              </article>
+              <article class="panel">
+                <h2>Captura filtrada do PHP</h2>
+                <p class="panel-help">Registra JSON e formulários de até 16 KB com campos sensíveis reconhecidos ocultados.</p>
+                <p class="cloudflare-state" id="bodyCaptureState">Aguardando leitura</p>
+                <button class="outline-button" id="bodyCaptureAction" type="button">Verificar captura</button>
+              </article>
+              <section class="panel" aria-labelledby="blockedIpsTitle">
+                <h2 id="blockedIpsTitle">IPs bloqueados pelo Studio</h2>
+                <div class="blocked-ip-list" id="blockedIpList"><p class="panel-help">Aguardando leitura</p></div>
+              </section>
+            </aside>
+          </div>
+        </section>
 
-        <section class="page" id="page-activity"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> HISTÓRICO LOCAL</div><h1>Atividade <em>recente.</em></h1><p class="heading-copy">O histórico fica neste navegador e pode ser exportado.</p></div><button class="outline-button" id="exportLog">↓ Exportar registro</button></div><div class="activity-table full-activity" id="activityTable" role="table" aria-label="Histórico de atividade"><div class="activity-row activity-head" role="row"><span role="columnheader">EVENTO</span><span role="columnheader">DETALHES</span><span role="columnheader">QUANDO</span><span role="columnheader">ESTADO</span></div><div class="activity-row" role="row"><span class="event-cell" role="cell"><i class="event-icon check-event" aria-hidden="true">·</i> Nenhuma ação registrada</span><span class="detail-cell" role="cell">Backups, downloads preparados e reinícios aparecerão aqui.</span><span class="time-cell" role="cell">—</span><span class="result-chip done" role="cell">—</span></div></div></section>
+        <section class="page" id="page-activity"><div class="page-heading compact-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> HISTÓRICO LOCAL</div><h1>Atividade <em>recente.</em></h1><p class="heading-copy">O histórico fica neste navegador e pode ser exportado.</p></div><button class="outline-button" id="exportLog" type="button" disabled>Exportar registro</button></div><div class="activity-table full-activity" id="activityTable" data-activity-list="full"></div></section>
       </main>
     </div>
 

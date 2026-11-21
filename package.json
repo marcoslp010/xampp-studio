@@ -12,7 +12,7 @@
     "build": "npm run build:js && npm run build:css",
     "build:js": "node scripts/build-js.cjs",
     "build:css": "tailwindcss -i src/tailwind.css -o .tailwind.tmp.css --minify && node scripts/build-css.cjs",
-    "test": "node tests/run-tests.cjs && node --test tests/extension-catalog.cjs tests/php-release-catalog.cjs tests/php-activation.cjs && node tests/admin-targets.cjs && powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/start-safety.ps1"
+    "test": "node tests/run-tests.cjs && node --test tests/extension-catalog.cjs tests/php-release-catalog.cjs tests/php-activation.cjs tests/firewall-logs.cjs && node tests/admin-targets.cjs && powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/start-safety.ps1"
   },
   "keywords": [
     "xampp",

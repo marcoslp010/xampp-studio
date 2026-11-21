@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('preview', 'block', 'unblock', 'enable', 'disable')]
+  [ValidateSet('preview', 'block', 'unblock', 'enable', 'disable', 'log-profiles')]
   [string]$Mode,
   [string]$Ip,
   [string]$RuleName,
@@ -92,6 +92,16 @@ function Get-CloudflarePreview {
 }
 
 switch ($Mode) {
+  'log-profiles' {
+    $profiles = @(Get-NetFirewallProfile -PolicyStore ActiveStore | ForEach-Object {
+      [pscustomobject]@{
+        file = [Environment]::ExpandEnvironmentVariables([string]$_.LogFileName)
+        allowed = [string]$_.LogAllowed -eq 'True'
+        dropped = [string]$_.LogBlocked -eq 'True'
+      }
+    })
+    Write-Result @{ profiles = $profiles }
+  }
   'preview' {
     Write-Result (Get-CloudflarePreview)
   }

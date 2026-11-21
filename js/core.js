@@ -68,6 +68,7 @@ export function recordActivity(event, details, status = 'Concluído') {
   state.activity.unshift({ event, details, status, at: new Date().toISOString() });
   state.activity = state.activity.slice(0, 100);
   try { localStorage.setItem('xamppStudioActivity', JSON.stringify(state.activity)); } catch { /* armazenamento indisponível */ }
+  document.dispatchEvent(new Event('studio:activity'));
 }
 
 export function escapeHtml(value) {

@@ -255,7 +255,7 @@ function navigate(page){
   if(page==='mysql'&&state.apiAvailable){loadMySqlReleases();loadPreparedMySqlRuntimes()}
   if(page==='php'){state.dllVersionRoot=null;if(state.apiAvailable)loadDllRegistry()}
   if(page==='performance'&&state.apiAvailable)loadPerformance();
-  if(page==='firewall'&&state.apiAvailable)loadFirewall();
+  if(page==='firewall')loadFirewall();
   window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
   syncPageHash(page);
 }
@@ -300,7 +300,11 @@ window.addEventListener('hashchange',()=>{
   if(syncHashLock){syncHashLock=false;return}
   applyHashRoute();
 });
-$$('.nav-item').forEach(button=>button.addEventListener('click',()=>navigate(button.dataset.page)));
+$$('.nav-item').forEach(button => button.addEventListener('click', () => {
+  const mobile = $('#appSidebar').classList.contains('mobile-open');
+  navigate(button.dataset.page);
+  if (mobile) $('#mainContent').focus({ preventScroll: true });
+}));
 $$('[data-goto]').forEach(button=>button.addEventListener('click',()=>navigate(button.dataset.goto)));
 $$('.detail-tab').forEach(button=>button.addEventListener('click',()=>showVersionDetailTab(button.dataset.detailTab)));
 $('.version-detail-tabs').addEventListener('keydown',event=>{
@@ -684,6 +688,7 @@ async function showPeclVersions(dll,runtime=selectedDllRuntime(),packageName,ref
   }
 }
 renderVersions();renderActivity();
+document.addEventListener('studio:activity', renderActivity);
 function setServiceStatus(element,active,detail=null){
   const el=$(element);el.classList.toggle('stopped',active===false);el.classList.toggle('unavailable',active===null);
   el.innerHTML=`<i></i> ${active===null?'Sem conexão':active?(escapeHtml(detail||'Em execução')):(escapeHtml(detail||'Parado'))}`;
@@ -927,10 +932,22 @@ async function showSqlReview(){
 
 $('#backupButton').addEventListener('click',async()=>{if(!state.apiAvailable){toast('Inicie o XAMPP Studio com start.ps1 para criar uma cópia real dos arquivos de configuração.',true);return}try{const result=await requestApi('/api/backup',{method:'POST',body:'{}'});$('#lastBackupLabel').textContent=`${new Date(result.createdAt).toLocaleString('pt-BR')} · ${result.files.length} arquivos`;recordActivity('Backup de configuração criado',`${result.files.length} arquivo(s) · ${result.files.map(f=>f.name).join(', ')}`);toast(`Backup criado: ${result.files.map(f=>f.name).join(', ')}. Cópia salva na pasta backups.`)}catch(error){toast(`Não foi possível criar o backup: ${error.message}`,true)}});
 function renderActivity(){
-  const table=$('#activityTable');if(!table)return;
+  const entries = state.activity;
+  $('#exportLog').disabled = entries.length === 0;
   const header='<div class="activity-row activity-head" role="row"><span role="columnheader">EVENTO</span><span role="columnheader">DETALHES</span><span role="columnheader">QUANDO</span><span role="columnheader">ESTADO</span></div>';
-  const rows=state.activity.map(item=>`<div class="activity-row" role="row"><span class="event-cell" role="cell"><i class="event-icon check-event" aria-hidden="true">·</i> ${escapeHtml(item.event)}</span><span class="detail-cell" role="cell">${escapeHtml(item.details)}</span><span class="time-cell" role="cell">${new Date(item.at).toLocaleString('pt-BR')}</span><span class="result-chip done" role="cell">${escapeHtml(item.status)}</span></div>`).join('');
-  table.innerHTML=header+(rows||'<div class="activity-row" role="row"><span class="event-cell" role="cell"><i class="event-icon check-event" aria-hidden="true">·</i> Nenhuma ação registrada</span><span class="detail-cell" role="cell">Backups, downloads preparados e reinícios aparecerão aqui.</span><span class="time-cell" role="cell">—</span><span class="result-chip done" role="cell">—</span></div>');
+  const rows = entries.map(item => `<div class="activity-row" role="row"><span class="event-cell" role="cell"><i class="event-icon check-event" aria-hidden="true">·</i> ${escapeHtml(item.event)}</span><span class="detail-cell" role="cell">${escapeHtml(item.details)}</span><span class="time-cell" role="cell">${new Date(item.at).toLocaleString('pt-BR')}</span><span class="result-chip done" role="cell">${escapeHtml(item.status)}</span></div>`);
+  for (const table of $$('[data-activity-list]')) {
+    if (!rows.length) {
+      table.removeAttribute('role');
+      table.removeAttribute('aria-label');
+      table.innerHTML = '<div class="empty-state"><strong>Nenhuma ação registrada</strong><p>Backups, downloads e reinícios aparecerão aqui.</p></div>';
+      continue;
+    }
+    const recent = table.dataset.activityList === 'recent';
+    table.setAttribute('role', 'table');
+    table.setAttribute('aria-label', recent ? 'Atividade recente' : 'Histórico de atividade');
+    table.innerHTML = header + (recent ? rows.slice(0, 5) : rows).join('');
+  }
 }
 function configureServiceActions(serviceControl){
   for(const component of ['apache','mysql']){
@@ -1341,10 +1358,111 @@ $('#savePhpSettings').addEventListener('click',()=>{
   $('#confirmPhpSettings').onclick=async()=>{const button=$('#confirmPhpSettings');button.disabled=true;button.textContent='Salvando…';try{const result=await requestApi('/api/php/settings',{method:'POST',body:JSON.stringify({values,phpRoot})});closeModal();recordActivity('Variáveis PHP atualizadas',`PHP ${versionLabel} · ${result.changed.length} opção(ões) · backup ${result.backup}`,result.warnings?.length?'Aviso':'Concluído');await loadPhpSettings(phpRoot);if(result.active)await loadLiveStatus();const note=result.warnings?.length?` ${result.warnings.join(' ')}`:'';toast((result.active?(result.apacheRestarted?'Configurações salvas e Apache reiniciado.':'Configurações salvas; o Apache estava parado e aplicará os ajustes ao iniciar.'):`Configurações salvas e validadas em PHP ${versionLabel}; a versão não está ativa.`)+note,Boolean(result.warnings?.length))}catch(error){button.disabled=false;button.textContent='Tentar novamente';$('#modalContent').insertAdjacentHTML('beforeend',`<div class="modal-note">${escapeHtml(error.message)}</div>`)}};
 });
 
-function renderFirewallLogs(filter=''){
-  const query=filter.trim().toLowerCase();
-  const entries=state.firewallLogs.filter(item=>`${item.ip} ${item.method} ${item.path} ${item.status} ${item.source} ${item.body} ${item.raw}`.toLowerCase().includes(query));
-  $('#firewallLogList').innerHTML=entries.map((item,index)=>`<article class="firewall-log-row"><div class="firewall-log-primary"><strong>${escapeHtml(item.ip)}</strong><span class="firewall-method">${escapeHtml(item.method)}</span><span class="firewall-path">${escapeHtml(item.path)}</span><span class="firewall-source">${escapeHtml(item.source)} · ${escapeHtml(item.status)}</span></div><div class="firewall-log-meta"><span>${escapeHtml(item.timestamp||'Horário não informado')}</span><span>${escapeHtml(item.body)}</span><div><button class="text-action view-raw-log" data-index="${index}">Ver raw <span aria-hidden="true">↗</span></button>${item.blocked?'<span class="result-chip warning-chip">BLOQUEADO</span>':`<button class="text-action block-log-ip" data-ip="${escapeHtml(item.ip)}">Bloquear IP <span aria-hidden="true">＋</span></button>`}</div></div></article>`).join('')||'<div class="empty-state"><strong>Nenhum registro encontrado</strong><p>Não há linhas nos logs disponíveis que correspondam a esta busca.</p></div>';
+const firewallLogList = $('#firewallLogList');
+const firewallFilters = $('#firewallFilters');
+const firewallSearch = $('#firewallSearch');
+const firewallPeriod = $('#firewallPeriod');
+const firewallDateRange = $('#firewallDateRange');
+const firewallLive = $('#firewallLive');
+const firewallTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
+let firewallPage = 1;
+let firewallSources = [];
+let firewallCheckedAt = null;
+let firewallLogRequest = null;
+let firewallSearchTimer;
+let renderedFirewallFilters = '';
+
+function firewallFilterParams() {
+  const params = new URLSearchParams(new FormData(firewallFilters));
+  for (const [key, value] of [...params]) {
+    if (value.trim()) params.set(key, value.trim());
+    else params.delete(key);
+  }
+  if (params.get('period') === 'custom') {
+    params.delete('period');
+    for (const [key, time] of [['from', '00:00:00.000'], ['to', '23:59:59.999']]) {
+      if (!params.has(key)) continue;
+      const date = new Date(params.get(key) + 'T' + time);
+      if (Number.isFinite(date.getTime())) params.set(key, date.toISOString());
+    }
+  }
+  return params;
+}
+
+function updateFirewallFilterControls() {
+  firewallDateRange.hidden = firewallDateRange.disabled = firewallPeriod.value !== 'custom';
+  const params = firewallFilterParams();
+  const basic = Number(params.has('q')) + Number(params.has('source'));
+  const dateFields = Number(params.has('from')) + Number(params.has('to'));
+  const advanced = [...params].length - basic - (dateFields === 2 ? 1 : 0);
+  const badge = $('#firewallFilterCount');
+  badge.hidden = advanced === 0;
+  badge.textContent = advanced === 1 ? '1 ativo' : advanced + ' ativos';
+  $('#clearFirewallFilters').disabled = !basic && !advanced && !firewallPeriod.value;
+}
+
+function formatFirewallTime(timestamp) {
+  return timestamp ? firewallTime.format(new Date(timestamp)) : 'Horário indisponível';
+}
+
+function renderFirewallLiveStatus() {
+  const mode = !firewallLive.checked ? 'Pausado' : firewallPage > 1 ? 'Histórico' : 'Ao vivo · a cada 5 s';
+  $('#firewallLiveStatus').textContent = firewallCheckedAt
+    ? mode + ' · Última leitura ' + formatFirewallTime(firewallCheckedAt)
+    : 'Aguardando a primeira leitura…';
+}
+
+function firewallFileStatus(file) {
+  if (file.status === 'readable') {
+    if (file.unrecognized) return 'Formato fora do padrão reconhecido';
+    return file.count.toLocaleString('pt-BR') + ' registros lidos';
+  }
+  if (file.status === 'denied') return 'Acesso negado pelo Windows';
+  return file.status === 'missing' ? 'Arquivo ainda não encontrado' : 'Arquivo indisponível';
+}
+
+function renderFirewallLogs(logs, filters) {
+  const { entries, sources, pagination } = logs;
+  const changed = JSON.stringify(entries) !== JSON.stringify(state.firewallLogs);
+  const firstRead = !firewallCheckedAt;
+  const selectedPage = firewallPage !== pagination.page;
+  firewallPage = pagination.page;
+  firewallCheckedAt = logs.checkedAt;
+  if (firstRead || changed || selectedPage || renderedFirewallFilters !== filters) {
+    renderedFirewallFilters = filters;
+    state.firewallLogs = entries;
+    firewallLogList.innerHTML = entries.map((item, index) => {
+      const status = String(item.status);
+      const tone = /^(DROP|BLOCK|4\d\d|5\d\d)$/i.test(status) ? 'warning' : /^(ALLOW|2\d\d|3\d\d)$/i.test(status) ? 'success' : '';
+      return `<article class="firewall-log-row">
+        <div class="firewall-log-primary"><span class="firewall-method">${escapeHtml(item.method)}</span><strong>${escapeHtml(item.ip)}</strong><span class="firewall-result ${tone}">${escapeHtml(status)}</span></div>
+        <code class="firewall-path">${escapeHtml(item.path)}</code>
+        <div class="firewall-log-meta"><span>${escapeHtml(item.source)} · ${formatFirewallTime(item.timestamp)}</span><div>
+          <button type="button" class="text-action view-raw-log" data-index="${index}">Ver linha</button>
+          ${item.blocked ? '<span class="firewall-result warning">IP bloqueado</span>' : `<button type="button" class="text-action block-log-ip" data-ip="${escapeHtml(item.ip)}">Bloquear IP</button>`}
+        </div></div>
+      </article>`;
+    }).join('') || `<div class="empty-state"><strong>Nenhum registro encontrado</strong><p>${filters ? 'Ajuste os filtros ou use “Limpar filtros” para voltar à lista completa.' : 'Confira os caminhos e a leitura dos arquivos abaixo.'}</p></div>`;
+  }
+  if (JSON.stringify(sources) !== JSON.stringify(firewallSources)) {
+    firewallSources = sources;
+    $('#openFirewallLogs').disabled = !sources.some(file => file.status === 'readable');
+    $('#firewallFiles').innerHTML = sources.map(file => `<li><strong>${escapeHtml(file.source)} · ${firewallFileStatus(file)}</strong><code>${escapeHtml(file.path)}</code></li>`).join('');
+  }
+  const info = 'O painel lê até 2.000 linhas recentes e 2 MB por arquivo.';
+  $('#firewallSourceNote').textContent = [
+    info,
+    logs.windowsLogging === false ? 'Os perfis consultados do Windows estão com o registro de conexões desativado.' : '',
+    logs.piped ? 'Há um destino do Apache que envia os registros para outro processo.' : ''
+  ].filter(Boolean).join(' ');
+  renderFirewallLiveStatus();
+  const start = pagination.total ? (firewallPage - 1) * pagination.pageSize + 1 : 0;
+  const end = start ? start + entries.length - 1 : 0;
+  const count = `${start.toLocaleString('pt-BR')}–${end.toLocaleString('pt-BR')} de ${pagination.total.toLocaleString('pt-BR')} · Página ${firewallPage} de ${pagination.pages}`;
+  const pageLabel = $('#firewallPageCount');
+  if (pageLabel.textContent !== count) pageLabel.textContent = count;
+  $('#firewallPrev').disabled = firewallPage <= 1;
+  $('#firewallNext').disabled = firewallPage >= pagination.pages;
 }
 function renderBlockedIps(){
   $('#blockedIpList').innerHTML=state.blockedIps.map(item=>`<div class="blocked-ip-row"><span><strong>${escapeHtml(item.ip)}</strong><small>Bloqueado em ${escapeHtml(new Date(item.blockedAt).toLocaleString('pt-BR'))}</small></span><button class="outline-button small-button unblock-ip" data-ip="${escapeHtml(item.ip)}">Desbloquear</button></div>`).join('')||'<div class="catalog-context">Nenhum IP bloqueado pelo XAMPP Studio.</div>';
@@ -1362,16 +1480,139 @@ function updateBodyCaptureDisplay(){
   view.textContent=state.bodyCaptureActive?`${state.bodyCapturePending?'Configurada para a próxima inicialização do Apache':'Captura ativa'}${size} · vale para todos os sites PHP deste XAMPP.`:'Desativada · nenhum corpo de requisição é salvo.';
   view.classList.toggle('cloudflare-active',state.bodyCaptureActive);
 }
-async function loadFirewall(){
-  $('#firewallLogList').innerHTML='<div class="skeleton skeleton-block"></div><div class="skeleton skeleton-line medium"></div>';
-  try{const [logs,blocks,capture]=await Promise.all([requestApi('/api/firewall/logs'),requestApi('/api/firewall/blocks'),requestApi('/api/firewall/body-capture').then(value=>({value}),error=>({error}))]);state.firewallLogs=logs.entries;state.blockedIps=blocks.blockedIps;state.cloudflareActive=blocks.cloudflareActive;state.bodyCaptureError=capture.error?.message||'';if(capture.value){state.bodyCaptureActive=capture.value.active;state.bodyCapturePending=capture.value.pending;state.bodyCaptureBytes=capture.value.bytes||0}renderFirewallLogs($('#firewallSearch').value);renderBlockedIps();updateCloudflareDisplay();updateBodyCaptureDisplay();$('#firewallNotice p').textContent=`Apache: ${logs.sources.apache} registro(s) lido(s) · Firewall do Windows: ${logs.sources.windowsFirewall} registro(s) · PHP: ${logs.sources.phpBodies||0} corpo(s) filtrado(s). ${logs.note}`}
-  catch(error){$('#firewallLogList').innerHTML=`<div class="empty-state"><strong>Não foi possível carregar todos os dados</strong><p>${escapeHtml(error.message)}. Inicie start.ps1; os logs do Windows podem exigir permissões adicionais.</p></div>`;try{const blocks=await requestApi('/api/firewall/blocks');state.blockedIps=blocks.blockedIps;state.cloudflareActive=blocks.cloudflareActive;renderBlockedIps();updateCloudflareDisplay()}catch{};try{const capture=await requestApi('/api/firewall/body-capture');state.bodyCaptureActive=capture.active;state.bodyCapturePending=capture.pending;state.bodyCaptureBytes=capture.bytes||0;state.bodyCaptureError=''}catch(captureError){state.bodyCaptureError=captureError.message}updateBodyCaptureDisplay()}
+async function loadFirewallLogs(page = firewallPage, { automatic = false, resetScroll = false } = {}) {
+  if (automatic && (firewallLogRequest || firewallSearchTimer)) return;
+  clearTimeout(firewallSearchTimer);
+  firewallSearchTimer = undefined;
+  firewallLogRequest?.abort();
+  const params = firewallFilterParams();
+  const filters = params.toString();
+  if (firewallCheckedAt && filters !== renderedFirewallFilters) page = 1;
+  params.set('page', page);
+  const request = new AbortController();
+  firewallLogRequest = request;
+  if (!automatic) firewallLogList.setAttribute('aria-busy', 'true');
+  try {
+    const logs = await requestApi('/api/firewall/logs?' + params, { signal: request.signal, timeout: 15000 });
+    if (request.signal.aborted) return;
+    renderFirewallLogs(logs, filters);
+    if (resetScroll) firewallLogList.scrollTop = 0;
+    $('#firewallLogError').hidden = true;
+  } catch (error) {
+    if (request.signal.aborted) return;
+    const message = $('#firewallLogError');
+    message.textContent = error.message + (firewallCheckedAt ? ' A lista ainda mostra a última leitura.' : '');
+    message.hidden = false;
+  } finally {
+    if (firewallLogRequest === request) {
+      firewallLogRequest = null;
+      firewallLogList.removeAttribute('aria-busy');
+    }
+  }
 }
-$('#refreshFirewall').addEventListener('click',loadFirewall);
-$('#firewallSearch').addEventListener('input',event=>renderFirewallLogs(event.target.value));
-$('#firewallLogList').addEventListener('click',event=>{
-  const rawButton=event.target.closest('.view-raw-log');if(rawButton){const item=state.firewallLogs[Number(rawButton.dataset.index)];if(item)showModal('LINHA ORIGINAL DO REGISTRO',`<h2>${escapeHtml(item.source)} · ${escapeHtml(item.ip)}</h2><p class="modal-copy">${item.source==='PHP · corpo filtrado'?'Este registro contém somente campos filtrados; segredos reconhecidos foram ocultados.':'O corpo HTTP não está disponível nesta fonte de registro.'}</p><pre class="sql-preview raw-log-preview">${escapeHtml(item.raw)}</pre><div class="modal-actions"><button class="primary-button" id="cancelAction">Fechar</button></div>`);return}
-  const block=event.target.closest('.block-log-ip');if(block)confirmBlockIp(block.dataset.ip);
+
+async function loadFirewall() {
+  const [blocks, capture] = await Promise.allSettled([
+    requestApi('/api/firewall/blocks'),
+    requestApi('/api/firewall/body-capture'),
+    loadFirewallLogs()
+  ]);
+  if (blocks.status === 'fulfilled') {
+    state.blockedIps = blocks.value.blockedIps;
+    state.cloudflareActive = blocks.value.cloudflareActive;
+    renderBlockedIps();
+    updateCloudflareDisplay();
+  } else {
+    $('#blockedIpList').textContent = 'Falha ao ler as regras. Use Atualizar para tentar novamente.';
+  }
+  state.bodyCaptureError = capture.status === 'rejected' ? capture.reason.message : '';
+  if (capture.status === 'fulfilled') {
+    state.bodyCaptureActive = capture.value.active;
+    state.bodyCapturePending = capture.value.pending;
+    state.bodyCaptureBytes = capture.value.bytes || 0;
+  }
+  updateBodyCaptureDisplay();
+}
+
+function pollFirewallLogs() {
+  if (firewallLive.checked && firewallPage === 1 && !document.hidden && !modal.open &&
+      $('#page-firewall').classList.contains('active-page') && !firewallLogList.contains(document.activeElement)) {
+    loadFirewallLogs(1, { automatic: true });
+  }
+}
+
+async function openFirewallLog(id) {
+  try {
+    await requestApi('/api/firewall/logs/open', { method: 'POST', body: JSON.stringify({ id }) });
+    toast('Log enviado ao Bloco de Notas.');
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+$('#refreshFirewall').addEventListener('click', loadFirewall);
+function applyFirewallFilters(debounce = false) {
+  updateFirewallFilterControls();
+  firewallLogRequest?.abort();
+  if (debounce) {
+    clearTimeout(firewallSearchTimer);
+    firewallSearchTimer = setTimeout(() => loadFirewallLogs(1, { resetScroll: true }), 300);
+  } else {
+    loadFirewallLogs(1, { resetScroll: true });
+  }
+}
+firewallFilters.addEventListener('input', event => {
+  if (event.target.matches('input[type="search"], input[type="text"]')) applyFirewallFilters(true);
+});
+firewallFilters.addEventListener('change', event => {
+  if (event.target.matches('select, input[type="date"], input[name="blocked"]')) applyFirewallFilters();
+});
+firewallFilters.addEventListener('submit', event => {
+  event.preventDefault();
+  applyFirewallFilters();
+});
+$('#clearFirewallFilters').addEventListener('click', () => {
+  const live = firewallLive.checked;
+  firewallFilters.reset();
+  firewallLive.checked = live;
+  applyFirewallFilters();
+  firewallSearch.focus();
+});
+firewallLive.addEventListener('change', () => {
+  renderFirewallLiveStatus();
+  pollFirewallLogs();
+});
+$('#firewallPrev').addEventListener('click', () => loadFirewallLogs(Math.max(1, firewallPage - 1), { resetScroll: true }));
+$('#firewallNext').addEventListener('click', () => loadFirewallLogs(firewallPage + 1, { resetScroll: true }));
+setInterval(pollFirewallLogs, 5000);
+document.addEventListener('visibilitychange', pollFirewallLogs);
+updateFirewallFilterControls();
+
+$('#openFirewallLogs').addEventListener('click', () => {
+  const files = firewallSources.filter(file => file.status === 'readable');
+  if (files.length === 1) {
+    openFirewallLog(files[0].id);
+    return;
+  }
+  showModal('ARQUIVOS DE LOG', `<h2>Abrir no Bloco de Notas</h2><ul class="firewall-file-picker">${files.map(file =>
+    `<li><div><strong>${escapeHtml(file.source)}</strong><code>${escapeHtml(file.path)}</code></div><button type="button" class="outline-button" data-open-firewall-log="${escapeHtml(file.id)}">Abrir</button></li>`
+  ).join('')}</ul><div class="modal-actions"><button type="button" class="outline-button" id="cancelAction">Fechar</button></div>`);
+});
+$('#modalContent').addEventListener('click', event => {
+  const open = event.target.closest('[data-open-firewall-log]');
+  if (open) openFirewallLog(open.dataset.openFirewallLog);
+});
+firewallLogList.addEventListener('click', event => {
+  const raw = event.target.closest('.view-raw-log');
+  if (raw) {
+    const item = state.firewallLogs[Number(raw.dataset.index)];
+    if (item) {
+      showModal('LINHA DO LOG', `<h2>${escapeHtml(item.source)} · ${escapeHtml(item.ip)}</h2><pre class="sql-preview raw-log-preview">${escapeHtml(item.raw)}</pre><div class="modal-actions"><button type="button" class="outline-button" id="cancelAction">Fechar</button><button type="button" class="primary-button" data-open-firewall-log="${escapeHtml(item.logId)}">Abrir no editor</button></div>`);
+    }
+    return;
+  }
+  const block = event.target.closest('.block-log-ip');
+  if (block) confirmBlockIp(block.dataset.ip);
 });
 function showBodyCaptureSetup(){
   if(state.bodyCaptureActive){showModal('DESATIVAR CAPTURA FILTRADA',`<h2>Parar de registrar corpos?</h2><p class="modal-copy">A captura será removida do php.ini e o Apache será reiniciado pelo Studio se estiver sob seu controle.</p><div class="modal-note">Os registros já gravados em <code>logs/request-bodies.jsonl</code> permanecerão no projeto. A mudança vale para todos os sites PHP deste XAMPP.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Manter ativa</button><button class="primary-button danger-button" id="confirmBodyCapture">Desativar captura</button></div>`);}

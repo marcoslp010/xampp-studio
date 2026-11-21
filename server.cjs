@@ -9,6 +9,7 @@ const { execFile, execFileSync, spawn } = require('node:child_process');
 const { promisify } = require('node:util');
 const { createHash, randomBytes } = require('node:crypto');
 const { JobManager } = require('./lib/jobs.cjs');
+const { logSources, readFirewallFilters, readFirewallPage, editorLogPath } = require('./lib/firewall-logs.cjs');
 const { extensionName, parsePeclBuilds, searchExtensionCatalog } = require('./lib/extension-catalog.cjs');
 const { listExtensionDownloads } = require('./lib/extension-downloads.cjs');
 const { listDatabaseReleases } = require('./lib/database-catalog.cjs');
@@ -1032,47 +1033,36 @@ async function applyPerformanceSettings(rawShare) {
   }
 }
 
-function readBoundedTail(file, maxBytes = 2 * 1024 * 1024, maxLines = 500) {
-  try {
-    const stat = fs.statSync(file);
-    const size = Math.min(stat.size, maxBytes);
-    const fd = fs.openSync(file, 'r');
-    try { const buffer = Buffer.alloc(size); fs.readSync(fd, buffer, 0, size, stat.size - size); return buffer.toString('utf8').split(/\r?\n/).filter(Boolean).slice(-maxLines); }
-    finally { fs.closeSync(fd); }
-  } catch { return []; }
+let firewallProfileCache = null;
+
+function windowsFirewallProfiles() {
+  if (!firewallProfileCache || Date.now() >= firewallProfileCache.expires) {
+    firewallProfileCache = {
+      expires: Date.now() + 60000,
+      result: runFirewallScript('log-profiles', [], 5000).then(
+        result => Array.isArray(result.profiles) ? result.profiles : null,
+        () => null
+      )
+    };
+  }
+  return firewallProfileCache.result;
 }
 
-function parseAccessLogs() {
-  const apacheLog = path.join(XAMPP_ROOT, 'apache', 'logs', 'access.log');
-  const apacheEntries = readBoundedTail(apacheLog).map((raw, index) => {
-    const match = raw.match(/^([^\s]+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"([A-Z]+)\s+([^\s]+)(?:\s+[^\"]+)?"\s+(\d{3})\s+(\S+)/);
-    if (!match) return null;
-    const timestamp = match[2];
-    const parsedDate = new Date(timestamp.replace(/:(\d{2})\s([+-]\d{4})$/, ' $1 $2'));
-    return { id: `apache-${index}-${createHash('sha1').update(raw).digest('hex').slice(0, 8)}`, source: 'Apache', ip: match[1], method: match[3], path: match[4], status: match[5], timestamp: Number.isNaN(parsedDate.getTime()) ? timestamp : parsedDate.toISOString(), body: 'Não registrado pelo Apache', raw };
-  }).filter(Boolean);
-  const systemFirewall = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'LogFiles', 'Firewall', 'pfirewall.log');
-  const firewallLines = readBoundedTail(systemFirewall);
-  let fields = [];
-  const firewallEntries = [];
-  for (const raw of firewallLines) {
-    if (raw.startsWith('#Fields:')) { fields = raw.slice(8).trim().split(/\s+/); continue; }
-    if (!raw || raw.startsWith('#') || !fields.length) continue;
-    const columns = raw.trim().split(/\s+/);
-    const row = Object.fromEntries(fields.map((field, index) => [field, columns[index] || '']));
-    if (!row['src-ip']) continue;
-    firewallEntries.push({ id: `windows-${firewallEntries.length}-${createHash('sha1').update(raw).digest('hex').slice(0, 8)}`, source: 'Firewall do Windows', ip: row['src-ip'], method: '—', path: `${row.protocol || ''} ${row['dst-port'] || ''}`.trim(), status: row.action || '—', timestamp: row.date && row.time ? `${row.date}T${row.time}` : '', body: 'Não disponível no log de rede', raw });
+async function firewallLogFiles() {
+  const profiles = process.platform === 'win32' ? await windowsFirewallProfiles() : null;
+  const folder = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'LogFiles', 'Firewall');
+  const windowsFiles = profiles?.map(profile => profile.file).filter(file => typeof file === 'string' && path.isAbsolute(file)) || [];
+  if (!windowsFiles.length && process.platform === 'win32') {
+    windowsFiles.push(path.join(folder, 'pfirewall.log'));
+    for (const profile of ['Domain', 'Private', 'Public']) {
+      const file = path.join(folder, 'pfirewall_' + profile + '.log');
+      if (fs.existsSync(file)) windowsFiles.push(file);
+    }
   }
-  const bodyFileEntries = [];
-  const bodyLines = [...readBoundedTail(`${BODY_CAPTURE_LOG}.1`, 2 * 1024 * 1024, 500), ...readBoundedTail(BODY_CAPTURE_LOG, 2 * 1024 * 1024, 500)];
-  for (const raw of bodyLines) {
-    try {
-      const record = JSON.parse(raw);
-      if (!record.ip || !record.method || typeof record.timestamp !== 'string') continue;
-      bodyFileEntries.push({ id: `php-body-${bodyFileEntries.length}-${createHash('sha1').update(raw).digest('hex').slice(0, 8)}`, source: 'PHP · corpo filtrado', ip: record.ip, method: record.method, path: record.path || '/', status: String(record.status || '—'), timestamp: record.timestamp, body: typeof record.body === 'string' ? record.body : JSON.stringify(record.body), raw: record.raw || raw });
-    } catch {}
-  }
-  return { entries: [...apacheEntries, ...firewallEntries, ...bodyFileEntries].sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp))).slice(0, 500), sources: { apache: apacheEntries.length, windowsFirewall: firewallEntries.length, phpBodies: bodyFileEntries.length, apachePath: apacheLog, windowsFirewallPath: systemFirewall, phpBodyPath: BODY_CAPTURE_LOG }, note: 'O corpo só é coletado quando a captura PHP filtrada é ativada. “Raw” mostra a linha de registro original.' };
+  return {
+    ...logSources(activeApacheRuntime(), windowsFiles, BODY_CAPTURE_LOG),
+    windowsLogging: profiles?.length ? profiles.some(profile => profile.allowed || profile.dropped) : null
+  };
 }
 
 function phpSingleQuoted(value) { return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`; }
@@ -1238,12 +1228,12 @@ function validateIp(value) {
   return ip;
 }
 
-async function runFirewallScript(mode, args = []) {
+async function runFirewallScript(mode, args = [], timeout = 30000) {
   if (process.platform !== 'win32') throw new Error('O controle do Firewall do Windows está disponível somente no Windows.');
   const script = path.join(APP_ROOT, 'firewall.ps1');
   if (!fs.existsSync(script)) throw new Error('O módulo do Firewall do Windows não foi encontrado.');
   try {
-    const result = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Mode', mode, ...args], { cwd: APP_ROOT, timeout: 30000, windowsHide: true, maxBuffer: 128 * 1024 });
+    const result = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Mode', mode, ...args], { cwd: APP_ROOT, timeout, windowsHide: true, maxBuffer: 128 * 1024 });
     const output = (result.stdout || '').trim().split(/\r?\n/).at(-1) || '{}';
     return JSON.parse(output);
   } catch (error) {
@@ -3453,10 +3443,29 @@ async function handler(req, res) {
       return json(res, 200, await applyPerformanceSettings(body.apacheShare));
     }
     if (req.method === 'GET' && url.pathname === '/api/firewall/logs') {
-      const result = parseAccessLogs();
-      const blocked = new Set(managedBlockedIps().map(item => item.ip.toLowerCase()));
-      result.entries = result.entries.map(item => ({ ...item, blocked: blocked.has(String(item.ip).toLowerCase()) }));
-      return json(res, 200, result);
+      let filters;
+      try { filters = readFirewallFilters(url.searchParams); }
+      catch (error) { return json(res, 400, { error: error.message }); }
+      const { files, piped, windowsLogging } = await firewallLogFiles();
+      const blocked = new Set(managedBlockedIps().map(item => item.ip));
+      const result = readFirewallPage(files, { ...filters, blocked });
+      return json(res, 200, { ...result, piped, windowsLogging, checkedAt: new Date().toISOString() });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/firewall/logs/open') {
+      const { id } = await readBody(req);
+      if (typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id)) return json(res, 400, { error: 'Selecione um arquivo da lista de logs.' });
+      if (process.platform !== 'win32') return json(res, 400, { error: 'O Bloco de Notas está disponível no Windows.' });
+      const { files } = await firewallLogFiles();
+      let file;
+      try { file = editorLogPath(files, id); }
+      catch (error) {
+        if (['EACCES', 'EPERM'].includes(error.code)) return json(res, 403, { error: 'O Windows negou acesso ao arquivo. Abra o Studio como administrador.' });
+        if (error.code !== 'ENOENT') throw error;
+      }
+      if (!file) return json(res, 404, { error: 'O arquivo de log não está mais disponível. Atualize os registros.' });
+      const notepad = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe');
+      await launchDetached(notepad, [file]);
+      return json(res, 200, { opened: true });
     }
     if (req.method === 'GET' && url.pathname === '/api/firewall/blocks') return json(res, 200, { blockedIps: managedBlockedIps(), cloudflareActive: Boolean(firewallState().cloudflare?.active) });
     if (req.method === 'GET' && url.pathname === '/api/firewall/body-capture') return json(res, 200, getBodyCaptureStatus());
