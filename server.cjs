@@ -20,6 +20,7 @@ const {
   apacheErrorLogPath,
   apacheErrorLogSize,
   apacheExtensionLoadFailures,
+  apacheStartupLogDetail,
   apacheStartupLibraries,
   describeApacheConflicts,
   escapeRegExp,
@@ -61,6 +62,8 @@ const {
   writeEnvironmentState
 } = require('./lib/runtime-state.cjs');
 const {
+  APACHE_PORT_TIMEOUT_MS,
+  APACHE_START_TIMEOUT_MS,
   apacheServiceCommand,
   buildStandaloneModeState,
   changeApacheServiceCommand,
@@ -2680,11 +2683,29 @@ async function rollbackPhpActivation(snapshot, serviceName, priorCommand, steps)
     try {
       if (await stableApacheState() === 1) {
         await runWindowsServiceAction('start', serviceName);
-        await waitForXamppService('apache', 4, 45000);
+        await waitForXamppService('apache', 4, APACHE_START_TIMEOUT_MS);
       }
     } catch (error) { problems.push(`retorno do Apache: ${error.message}`); }
   }
   return problems.length ? `Reversão incompleta (${problems.join('; ')}). Confira o backup em ${snapshot.directory}.` : `As configurações anteriores foram restauradas. Backup: ${snapshot.directory}.`;
+}
+
+async function startApacheForActivation(serviceName, apacheRoot, configPath, port) {
+  const errorLogOffset = apacheErrorLogSize(apacheRoot, configPath);
+  try {
+    await runWindowsServiceAction('start', serviceName);
+    await waitForXamppService('apache', 4, APACHE_START_TIMEOUT_MS);
+    if (!(await waitForPort(port, APACHE_PORT_TIMEOUT_MS))) {
+      throw new Error(`O serviço iniciou, mas a porta ${port} não respondeu após ${APACHE_PORT_TIMEOUT_MS / 1000} segundos.`);
+    }
+    const extensionFailures = apacheExtensionLoadFailures(apacheRoot, errorLogOffset, configPath);
+    if (extensionFailures.length) throw new Error(`O Apache iniciou, mas ${extensionFailures.join(', ')} não carregou no contexto web.`);
+  } catch (error) {
+    const detail = apacheStartupLogDetail(apacheRoot, errorLogOffset, configPath);
+    const log = apacheErrorLogPath(apacheRoot, configPath);
+    const message = detail ? `\nLog do Apache (${log})\n${detail}` : `\nLog do Apache: ${log}.`;
+    throw new Error(error.message + message, { cause: error });
+  }
 }
 
 /**
@@ -2869,7 +2890,6 @@ async function switchStandaloneEnvironment(phpRoot, apacheRootChoice = null) {
     ['studio-httpd.conf', generated.config]
   ]);
   const steps = { stopAttempted: false, startAttempted: false, commandAttempted: false };
-  const errorLogOffset = apacheErrorLogSize(apache.root);
   try {
     writeAtomically(phpIniPath, updatedPhpIni);
     const phpProbe = await probePhpRuntime(targetRoot, expectedPhp);
@@ -2889,12 +2909,8 @@ async function switchStandaloneEnvironment(phpRoot, apacheRootChoice = null) {
       await runWindowsServiceAction('stop', service.serviceName);
       await waitForXamppService('apache', 1, 30000);
       steps.startAttempted = true;
-      await runWindowsServiceAction('start', service.serviceName);
-      await waitForXamppService('apache', 4, 45000);
-      responding = await waitForPort(apachePort, 25000);
-      if (!responding) throw new Error(`O serviço iniciou, mas a porta ${apachePort} não respondeu. O ambiente anterior será restaurado.`);
-      const extensionFailures = apacheExtensionLoadFailures(apache.root, errorLogOffset);
-      if (extensionFailures.length) throw new Error(`O Apache iniciou, mas ${extensionFailures.join(', ')} não carregou no contexto web. O ambiente anterior será restaurado.`);
+      await startApacheForActivation(service.serviceName, apache.root, generated.config, apachePort);
+      responding = true;
       restarted = true;
     }
     return {
@@ -3007,7 +3023,6 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
     ...(apache.generatedConfig ? [['studio-httpd.conf', apacheConfig]] : [])
   ]);
   const steps = { stopAttempted: false, startAttempted: false, commandAttempted: false };
-  const errorLogOffset = apacheErrorLogSize(apache.root);
   try {
     writeAtomically(path.join(targetRoot, 'php.ini'), updatedPhpIni);
     const phpProbe = await probePhpRuntime(targetRoot, expectedPhp);
@@ -3034,12 +3049,8 @@ async function switchEnvironment(phpRoot, apacheRootChoice = null) {
       await runWindowsServiceAction('stop', service.serviceName);
       await waitForXamppService('apache', 1, 30000);
       steps.startAttempted = true;
-      await runWindowsServiceAction('start', service.serviceName);
-      await waitForXamppService('apache', 4, 45000);
-      responding = await waitForPort(apachePort, 25000);
-      if (!responding) throw new Error(`O serviço iniciou, mas a porta ${apachePort} não respondeu. O XAMPP Studio vai restaurar a versão anterior.`);
-      const extensionFailures = apacheExtensionLoadFailures(apache.root, errorLogOffset);
-      if (extensionFailures.length) throw new Error(`O Apache iniciou, mas ${extensionFailures.join(', ')} não carregou no contexto web. O XAMPP Studio vai restaurar a versão anterior.`);
+      await startApacheForActivation(service.serviceName, apache.root, apacheConfig, apachePort);
+      responding = true;
       restarted = true;
     }
     const missingBundled = rewrittenPhpApache.missing;

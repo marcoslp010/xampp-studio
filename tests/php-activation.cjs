@@ -8,8 +8,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { createHash } = require('node:crypto');
 const { apachePrimaryPort } = require('../lib/apache-config.cjs');
-const { escapeRegExp, extensionDllName, isBuiltinOpcache, phpExtensionDirectives, rewriteXamppPhpConfig } = require('../lib/php-compat.cjs');
+const { apacheErrorLogPath, apacheErrorLogSize, apacheExtensionLoadFailures, apacheStartupLogDetail, escapeRegExp, extensionDllName, isBuiltinOpcache, phpExtensionDirectives, rewriteXamppPhpConfig } = require('../lib/php-compat.cjs');
 const { isInside, samePath, readText, writeAtomically } = require('../lib/runtime-state.cjs');
+const { APACHE_PORT_TIMEOUT_MS, APACHE_START_TIMEOUT_MS, serviceExitCodes } = require('../lib/services.cjs');
 
 // Carrega as rotinas de ativação sem iniciar a API ou abrir serviços do Windows.
 const source = fs.readFileSync(path.join(__dirname, '../server.cjs'), 'utf8');
@@ -26,7 +27,7 @@ const routines = [
   functionsBetween('async function switchStandaloneEnvironment(', 'async function getApacheVersion(')
 ].join('\n');
 
-function fixture(t, mode, { state = 4, syntax = true, responsive = true } = {}) {
+function fixture(t, mode, { state = 4, syntax = true, responsive = true, startupFails = false } = {}) {
   const app = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-php-'));
   t.after(() => fs.rmSync(app, { recursive: true, force: true }));
   const xampp = path.join(app, 'xampp');
@@ -37,10 +38,15 @@ function fixture(t, mode, { state = 4, syntax = true, responsive = true } = {}) 
   const phpIni = path.join(target, 'php.ini');
   const stateFile = path.join(app, 'environment-state.json');
   const generatedFile = path.join(apacheRoot, 'conf', 'xampp-studio-httpd.conf');
+  const errorLog = path.join(apacheRoot, 'logs', 'active error.log');
+  const apacheConfig = 'Listen 8088\nErrorLog "logs/active error.log"';
   const events = [];
+  const startupTimeouts = [];
+  let starts = 0;
   for (const name of ['php.exe', 'php8apache2_4.dll', 'php8ts.dll']) writeAtomically(path.join(target, name), '');
   writeAtomically(phpIni, 'memory_limit=256M');
-  writeAtomically(apache.config, 'Listen 8088');
+  writeAtomically(apache.config, apacheConfig);
+  writeAtomically(errorLog, '[core:error] Erro de uma tentativa anterior\n');
   writeAtomically(apache.executable, '');
   writeAtomically(path.join(xampp, 'properties.ini'), 'base_stack_version=8.2.1-0');
   writeAtomically(config.apacheConf, 'LoadFile "C:/PHP antigo/php8ts.dll"\nLoadModule php_module "C:/PHP antigo/php8apache2_4.dll"\nPHPINIDir "C:/ini antigo"');
@@ -55,22 +61,36 @@ function fixture(t, mode, { state = 4, syntax = true, responsive = true } = {}) 
     phpExtensionDirectives, isBuiltinOpcache, rewriteXamppPhpConfig, apachePrimaryPort,
     currentDllRegistry: () => ({ dlls: [] }), verifyRuntimeDlls: () => ({ compatible: true }),
     collectDllRegistry: () => ({}), persistDllRegistry: () => ({}),
-    apacheConfigFiles: () => [], phpRuntimeApacheConflicts: () => [], apacheErrorLogSize: () => 0, apacheExtensionLoadFailures: () => [],
-    makeStandaloneApacheConfig: () => ({ config: generatedFile, text: 'Listen 8088' }),
+    apacheConfigFiles: () => [], phpRuntimeApacheConflicts: () => [],
+    APACHE_PORT_TIMEOUT_MS, APACHE_START_TIMEOUT_MS, apacheErrorLogPath, apacheErrorLogSize, apacheExtensionLoadFailures, apacheStartupLogDetail,
+    makeStandaloneApacheConfig: () => ({ config: generatedFile, text: apacheConfig }),
     probePhpRuntime: () => {
       assert.ok(readText(phpIni).includes(target.replace(/\\/g, '/') + '/ext'), 'a validação deve usar o ini final');
       return { version: '8.2.2', modules: [], threadSafety: 'TS' };
     },
     execFileAsync: file => ({ stdout: file === apache.executable && syntax ? 'Syntax OK' : '', stderr: '' }),
-    inspectXamppService: service, waitForXamppService: (_, desired) => { assert.equal(state, desired); return service(); },
-    runWindowsServiceAction: action => { events.push(action); state = action === 'start' ? 4 : 1; },
+    inspectXamppService: service,
+    waitForXamppService: (_, desired, timeout) => {
+      if (desired === 4) startupTimeouts.push(timeout);
+      if (desired === 4 && state === 1) throw Error('O Apache ficou parado (estado Windows 1).');
+      assert.equal(state, desired);
+      return service();
+    },
+    runWindowsServiceAction: action => {
+      events.push(action);
+      if (action === 'start' && ++starts === 1 && startupFails) {
+        fs.appendFileSync(errorLog, '[mpm_winnt:error] AH00451: Não foi possível abrir a porta\n');
+      } else {
+        state = action === 'start' ? 4 : 1;
+      }
+    },
     readServiceCommand: () => 'original', quoteServiceCommand: command => command, apacheServiceCommand: () => 'new',
     serviceCommandMatches: (a, b) => a === b, changeApacheServiceCommand: command => events.push(command),
     checkPort: port => { events.push(`check ${port}`); return false; },
-    waitForPort: port => { events.push(`wait ${port}`); return responsive; }
+    waitForPort: (port, timeout) => { assert.equal(timeout, 45000); events.push(`wait ${port}`); return responsive; }
   });
   vm.runInContext(routines, context);
-  return { run: () => context.switchEnvironment(target), context, events, target, config, phpIni, stateFile, generatedFile };
+  return { run: () => context.switchEnvironment(target), context, events, target, config, phpIni, stateFile, generatedFile, startupTimeouts };
 }
 
 for (const mode of ['legacy', 'standalone']) {
@@ -102,7 +122,50 @@ for (const mode of ['legacy', 'standalone']) {
     assert.equal(JSON.parse(readText(f.stateFile)).phpRoot, f.target);
     if (mode === 'legacy') assert.ok(readText(f.config.apacheConf).includes(`PHPINIDir "${f.target.replace(/\\/g, '/')}"`));
   });
+
+  test(`${mode}: falha na partida exibe somente erros novos do arquivo e restaura o Apache`, async t => {
+    const f = fixture(t, mode, { startupFails: true });
+    await assert.rejects(f.run(), error => {
+      assert.match(error.message, /estado Windows 1/);
+      assert.match(error.message, /active error\.log/);
+      assert.match(error.message, /AH00451/);
+      assert.doesNotMatch(error.message, /tentativa anterior/);
+      assert.match(error.message, /As configurações anteriores foram restauradas/);
+      return true;
+    });
+    assert.deepEqual(f.startupTimeouts, [120000, 120000]);
+    assert.deepEqual(f.events, ['new', 'stop', 'start', 'original', 'start']);
+  });
 }
+
+test('espera o Apache que sobe devagar e identifica o Apache que volta ao estado parado', async () => {
+  const serviceSource = fs.readFileSync(path.join(__dirname, '../lib/services.cjs'), 'utf8');
+  const begin = serviceSource.indexOf('async function waitForXamppService(');
+  const end = serviceSource.indexOf('async function waitForPort(', begin);
+  let time = 0;
+  let status = () => ({ state: time >= 70000 ? 4 : 2 });
+  const context = vm.createContext({
+    Date: { now: () => time },
+    setTimeout: (resolve, duration) => { time += duration; resolve(); },
+    inspectXamppService: () => ({ managed: true, label: 'Apache', ...status() })
+  });
+  vm.runInContext(serviceSource.slice(begin, end), context);
+  const wait = () => context.waitForXamppService('apache', 4, APACHE_START_TIMEOUT_MS);
+  assert.equal((await wait()).state, 4);
+  assert.equal(time, 70000);
+
+  time = 0;
+  status = () => time ? { state: 1, win32ExitCode: 1066, serviceExitCode: 1 } : { state: 2 };
+  await assert.rejects(wait(), /estado Windows 1.*Windows 1066, serviço 1/);
+  assert.equal(time, 500);
+
+  time = 0;
+  status = () => ({ state: 2 });
+  await assert.rejects(wait(), /estado Windows 2.*120 segundos/);
+  assert.equal(time, 120000);
+  assert.deepEqual(serviceExitCodes('WIN32_EXIT_CODE : 1066 (0x42a)\nSERVICE_EXIT_CODE : 1 (0x1)'), { win32ExitCode: 1066, serviceExitCode: 1 });
+  assert.deepEqual(serviceExitCodes('CÓDIGO_DE_SAÍDA_DO_WIN32 : 1066 (0x42a)\nCÓDIGO_DE_SAÍDA_DO_SERVIÇO : 1 (0x1)'), { win32ExitCode: 1066, serviceExitCode: 1 });
+});
 
 test('a migração usa PHPINIDir válido do Apache e recorre ao ini do runtime quando ausente', t => {
   const f = fixture(t, 'legacy');

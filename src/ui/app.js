@@ -237,7 +237,7 @@ async function showPhpActivation(runtime){
   if(repair)repair.onclick=()=>preparePendingExtensions(runtime);
   $('#confirmEnvironmentSwitch').onclick=async()=>{
     if(!dllCheck.compatible){toast(`Troca bloqueada: faltam ${dllMissing.length} DLL(s) no runtime de destino.`,true);return}
-    const button=$('#confirmEnvironmentSwitch');button.disabled=true;button.textContent='Validando configuração…';
+    const button=$('#confirmEnvironmentSwitch');button.disabled=true;button.textContent='Validando e aguardando o Apache…';
     try{
       const apacheRoot=$('#switchApache').value||null;
       const result=await requestApi('/api/environment/switch',{method:'POST',timeout:0,body:JSON.stringify({phpRoot:runtime.root,apacheRoot})});
@@ -248,7 +248,7 @@ async function showPhpActivation(runtime){
       await loadLiveStatus();
       await loadDllRegistry();
       toast(`PHP ${result.phpVersion} configurado${result.apacheRestarted?' e Apache reiniciado':''}${warnings}`,Boolean(result.warnings?.length));
-    }catch(error){button.disabled=false;button.textContent='Tentar novamente';$('#modalContent').insertAdjacentHTML('beforeend',`<div class="modal-note">${escapeHtml(error.message)}</div>`)}
+    }catch(error){button.disabled=false;button.textContent='Tentar novamente';$('#modalContent').insertAdjacentHTML('beforeend',`<div class="modal-note danger-note" role="alert">${escapeHtml(error.message).replace(/\n/g, '<br>')}</div>`)}
   };
 }
 $('#quickSwitch').addEventListener('click',()=>navigate('php'));
@@ -1035,7 +1035,7 @@ $('#apachePreparedList').addEventListener('click',event=>{
   const item=state.preparedApache.find(runtime=>runtime.root===button.dataset.apacheRoot);if(!item||!state.liveStatus?.phpRoot){toast('Leia o ambiente local antes de ativar o Apache.',true);return}
   showModal('TROCA VALIDADA DO AMBIENTE',`<h2>Usar Apache ${escapeHtml(item.version)} com o PHP atual?</h2><p class="modal-copy">O Studio cria uma configuração própria, valida os módulos e troca o executável do serviço sem depender do properties.ini do XAMPP.</p><div class="file-summary"><span class="file-type-icon">HTTP</span><span><strong>${escapeHtml(item.root)}</strong><small>${escapeHtml(item.compiler)} · ${escapeHtml(item.architecture)}</small></span></div><div class="modal-note">O Apache será reiniciado se estiver rodando. Qualquer falha restaura o serviço e as configurações anteriores. Um backup fica salvo dentro do projeto.</div><div class="modal-actions"><button class="outline-button" id="cancelAction">Cancelar</button><button class="primary-button" id="confirmApacheSwitch">Validar e usar Apache</button></div>`);
   $('#cancelAction').onclick=closeModal;
-  $('#confirmApacheSwitch').onclick=async()=>{const confirm=$('#confirmApacheSwitch');confirm.disabled=true;confirm.textContent='Validando módulos…';try{const result=await requestApi('/api/environment/activate',{method:'POST',body:JSON.stringify({mode:'standalone',phpRoot:state.liveStatus.phpRoot,apacheRoot:item.root})});closeModal();recordActivity('Apache atualizado junto ao PHP atual',`Apache ${result.apacheVersion} · PHP ${result.phpVersion} · backup ${result.backup}`,result.apacheRestarted?'Concluído':'Configurado');await loadLiveStatus();await loadPreparedApacheRuntimes();toast(result.apacheRestarted?`Apache ${result.apacheVersion} validado e reiniciado.`:`Apache ${result.apacheVersion} configurado; estava parado.`)}catch(error){confirm.disabled=false;confirm.textContent='Tentar novamente';$('#modalContent').insertAdjacentHTML('beforeend',`<div class="modal-note">${escapeHtml(error.message)}</div>`)}};
+  $('#confirmApacheSwitch').onclick=async()=>{const confirm=$('#confirmApacheSwitch');confirm.disabled=true;confirm.textContent='Validando e aguardando o Apache…';try{const result=await requestApi('/api/environment/activate',{method:'POST',timeout:0,body:JSON.stringify({mode:'standalone',phpRoot:state.liveStatus.phpRoot,apacheRoot:item.root})});closeModal();recordActivity('Apache atualizado junto ao PHP atual',`Apache ${result.apacheVersion} · PHP ${result.phpVersion} · backup ${result.backup}`,result.apacheRestarted?'Concluído':'Configurado');await loadLiveStatus();await loadPreparedApacheRuntimes();toast(result.apacheRestarted?`Apache ${result.apacheVersion} validado e reiniciado.`:`Apache ${result.apacheVersion} configurado; estava parado.`)}catch(error){confirm.disabled=false;confirm.textContent='Tentar novamente';$('#modalContent').insertAdjacentHTML('beforeend',`<div class="modal-note danger-note" role="alert">${escapeHtml(error.message).replace(/\n/g, '<br>')}</div>`)}};
 });
 $('#apacheReleaseList').addEventListener('click',event=>{
   const download=event.target.closest('.download-apache');if(!download)return;
